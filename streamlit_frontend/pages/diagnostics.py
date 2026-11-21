@@ -7,7 +7,7 @@ and execution scheduling (Day 2 Milestone Scaffolding).
 
 from typing import Any, Dict, List
 import streamlit as st
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
 
 
 def render_diagnostics_page(test_history: List[Dict[str, Any]]) -> None:

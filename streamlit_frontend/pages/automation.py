@@ -5,7 +5,7 @@ Automated diagnostic schedules, cron recurrence, and SLA assertions.
 """
 
 import streamlit as st
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
 
 
 def render_automation_page() -> None:

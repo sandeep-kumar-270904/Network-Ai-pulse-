@@ -66,38 +66,54 @@ Network engineers frequently rely on fragmented command-line utilities, manual s
 
 | Component | Technology |
 |-----------|-----------|
-| Backend API | Python 3.11+, FastAPI, Uvicorn |
-| Frontend UI | Python, Streamlit |
+| Backend REST API | Python 3.11+, FastAPI, Uvicorn (Port 8000) |
+| Production Frontend (React NOC) | React 18, TypeScript, Vite, Tailwind CSS, Lucide React, Apache ECharts, React Flow (@xyflow/react), Axios (Port 3000) |
+| Classic Frontend (Streamlit) | Python, Streamlit, Plotly (Port 8501) |
 | Data Processing | Pandas, NumPy |
-| Visualisation | Plotly |
 | Machine Learning | scikit-learn |
 | Local Introspection | `psutil`, `socket`, `platform` |
-| Database | SQLite (planned) |
-| HTTP Client | Requests |
-| Testing | pytest |
+| Testing | pytest (68 unit & integration tests) |
 
 ---
 
 ## Architecture
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                      User Browser                      │
-│                  (Streamlit Frontend)                  │
-└──────────────────────────┬─────────────────────────────┘
-                           │ HTTP (port 8501)
-┌──────────────────────────▼─────────────────────────────┐
-│                 Streamlit UI (app.py)                  │
-│   • Collapsible Sidebar      • System Information      │
-│   • 8-module navigation      • Network Environment     │
-│   • Telemetry metric cards   • Activity Event Feed     │
-│   • Real-time health monitor • Error recovery logic    │
-└──────────────────────────┬─────────────────────────────┘
-                           │ HTTP REST (port 8000)
-┌──────────────────────────▼─────────────────────────────┐
-│            FastAPI Backend (backend/main.py)           │
-│   • GET /                    • GET /health             │
-│   • GET /api/system          • GET /api/modules        │
+┌────────────────────────────────────────────────────────────────────────┐
+│                              Operator Browser                          │
+│     React NOC Dashboard (Port 3000)   /   Streamlit App (Port 8501)   │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ HTTP REST (port 8000)
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                   FastAPI Backend Core (backend/main.py)               │
+│   • GET /                    • GET /health                             │
+│   • GET /api/system          • GET /api/network-environment            │
+│   • GET /api/modules                                                   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Running the Application
+
+### 1. Start the FastAPI Backend
+```bash
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+Open docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+### 2. Start the Production React NOC Frontend
+```bash
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 3000
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### 3. (Optional) Run the Classic Streamlit Dashboard
+```bash
+streamlit run app.py --server.port 8501
+```
 │   • GET /api/network-environment                       │
 │   • OpenAPI docs (/docs)     • CORS & error handlers   │
 └────────────────────────────────────────────────────────┘

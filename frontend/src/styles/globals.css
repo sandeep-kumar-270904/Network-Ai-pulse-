@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #080E19;
+    --sidebar: #091525;
+    --surface: #0D192B;
+    --surface-alt: #111E30;
+    --card: #13243A;
+    --border: #203750;
+    --cyan: #22D3EE;
+    --blue: #287EFF;
+    --green: #00D69A;
+    --amber: #F5B82E;
+    --red: #FF475F;
+    --text: #EAF3FF;
+    --secondary: #91A7C0;
+    --muted: #647C96;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom scrollbars for enterprise NOC */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #091525;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #203750;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #287EFF;
+}
+
+/* Pulse glow effects */
+.glow-cyan {
+  box-shadow: 0 0 15px -3px rgba(34, 211, 238, 0.3);
+}
+
+.glow-blue {
+  box-shadow: 0 0 15px -3px rgba(40, 126, 255, 0.3);
+}
+
+.glow-green {
+  box-shadow: 0 0 15px -3px rgba(0, 214, 154, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 15px -3px rgba(255, 71, 95, 0.3);
+}

@@ -21,11 +21,11 @@ from app import (
     get_local_network_environment,
     get_host_compute_stats,
 )
-from frontend.components.sidebar import NAV_ITEMS
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
-from frontend.components.gauges import create_gauge
-from frontend.components.charts import create_performance_chart
-from frontend.components.topology import create_topology_graph
+from streamlit_frontend.components.sidebar import NAV_ITEMS
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.gauges import create_gauge
+from streamlit_frontend.components.charts import create_performance_chart
+from streamlit_frontend.components.topology import create_topology_graph
 
 
 class TestAppMetadata:

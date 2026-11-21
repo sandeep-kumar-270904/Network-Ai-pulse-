@@ -10,7 +10,7 @@ import os
 import platform
 import sys
 import streamlit as st
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
 
 
 def render_system_info_page(

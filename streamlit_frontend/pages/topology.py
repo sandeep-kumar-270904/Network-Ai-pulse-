@@ -6,8 +6,8 @@ Interactive network topology visualization and node link inspection.
 
 from typing import Any, Dict, List
 import streamlit as st
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
-from frontend.components.topology import create_topology_graph
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.topology import create_topology_graph
 
 
 def render_topology_page(endpoints: List[Dict[str, Any]]) -> None:

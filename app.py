@@ -49,7 +49,7 @@ st.set_page_config(
 # ═══════════════════════════════════════════════════════════════════════════
 def load_enterprise_theme() -> None:
     """Inject the dark NOC CSS design system."""
-    css_path = os.path.join(os.path.dirname(__file__), "frontend", "styles", "theme.css")
+    css_path = os.path.join(os.path.dirname(__file__), "streamlit_frontend", "styles", "theme.css")
     if os.path.exists(css_path):
         with open(css_path, "r", encoding="utf-8") as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
@@ -60,20 +60,20 @@ load_enterprise_theme()
 # ═══════════════════════════════════════════════════════════════════════════
 # Modular Component & Page Imports
 # ═══════════════════════════════════════════════════════════════════════════
-from frontend.components.sidebar import render_sidebar
-from frontend.pages.overview import render_overview_page
-from frontend.pages.diagnostics import render_diagnostics_page
-from frontend.pages.topology import render_topology_page
-from frontend.pages.inventory import render_inventory_page
-from frontend.pages.performance import render_performance_page
-from frontend.pages.automation import render_automation_page
-from frontend.pages.ai_analysis import render_ai_analysis_page
-from frontend.pages.alerts import render_alerts_page
-from frontend.pages.history import render_history_page
-from frontend.pages.analytics import render_analytics_page
-from frontend.pages.reports import render_reports_page
-from frontend.pages.system_info import render_system_info_page
-from frontend.pages.settings import render_settings_page
+from streamlit_frontend.components.sidebar import render_sidebar
+from streamlit_frontend.pages.overview import render_overview_page
+from streamlit_frontend.pages.diagnostics import render_diagnostics_page
+from streamlit_frontend.pages.topology import render_topology_page
+from streamlit_frontend.pages.inventory import render_inventory_page
+from streamlit_frontend.pages.performance import render_performance_page
+from streamlit_frontend.pages.automation import render_automation_page
+from streamlit_frontend.pages.ai_analysis import render_ai_analysis_page
+from streamlit_frontend.pages.alerts import render_alerts_page
+from streamlit_frontend.pages.history import render_history_page
+from streamlit_frontend.pages.analytics import render_analytics_page
+from streamlit_frontend.pages.reports import render_reports_page
+from streamlit_frontend.pages.system_info import render_system_info_page
+from streamlit_frontend.pages.settings import render_settings_page
 
 
 # ═══════════════════════════════════════════════════════════════════════════

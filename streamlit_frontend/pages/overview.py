@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 import datetime
 import streamlit as st
 
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
-from frontend.components.gauges import create_gauge
-from frontend.components.charts import create_performance_chart
-from frontend.components.status_panel import render_status_panel
-from frontend.components.topology import create_topology_graph
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.gauges import create_gauge
+from streamlit_frontend.components.charts import create_performance_chart
+from streamlit_frontend.components.status_panel import render_status_panel
+from streamlit_frontend.components.topology import create_topology_graph
 
 
 def render_overview_page(

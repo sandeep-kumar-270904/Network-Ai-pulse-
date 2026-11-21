@@ -6,8 +6,8 @@ Throughput, latency, and jitter saturation benchmarks (Day 3 Milestone).
 
 from typing import Any, Dict, List
 import streamlit as st
-from frontend.components.metric_cards import render_kpi_card, render_status_badge
-from frontend.components.charts import create_performance_chart
+from streamlit_frontend.components.metric_cards import render_kpi_card, render_status_badge
+from streamlit_frontend.components.charts import create_performance_chart
 
 
 def render_performance_page(endpoints: List[Dict[str, Any]]) -> None:
