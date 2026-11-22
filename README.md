@@ -67,12 +67,11 @@ Network engineers frequently rely on fragmented command-line utilities, manual s
 | Component | Technology |
 |-----------|-----------|
 | Backend REST API | Python 3.11+, FastAPI, Uvicorn (Port 8000) |
-| Production Frontend (React NOC) | React 18, TypeScript, Vite, Tailwind CSS, Lucide React, Apache ECharts, React Flow (@xyflow/react), Axios (Port 3000) |
-| Classic Frontend (Streamlit) | Python, Streamlit, Plotly (Port 8501) |
+| Production Frontend (React NOC) | React 18, TypeScript, Vite, Tailwind CSS, Lucide React, Apache ECharts, React Flow (@xyflow/react), Axios (Port 5173) |
+| Core Introspection Engine | Python standard library, `psutil`, `socket`, `platform` |
 | Data Processing | Pandas, NumPy |
 | Machine Learning | scikit-learn |
-| Local Introspection | `psutil`, `socket`, `platform` |
-| Testing | pytest (68 unit & integration tests) |
+| Testing | pytest (52 unit & integration tests) |
 
 ---
 
@@ -81,43 +80,24 @@ Network engineers frequently rely on fragmented command-line utilities, manual s
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                              Operator Browser                          │
-│     React NOC Dashboard (Port 3000)   /   Streamlit App (Port 8501)   │
+│                     React NOC Dashboard (Port 5173)                    │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ HTTP REST (port 8000)
 ┌───────────────────────────────────▼────────────────────────────────────┐
 │                   FastAPI Backend Core (backend/main.py)               │
 │   • GET /                    • GET /health                             │
 │   • GET /api/system          • GET /api/network-environment            │
-│   • GET /api/modules                                                   │
+│   • GET /api/modules         • CORS & global exception handlers        │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+┌───────────────────────────────────▼────────────────────────────────────┐
+│                 Core Introspection Logic (core/)                       │
+│   • core/system_metrics.py: get_local_network_environment()            │
+│   • core/system_metrics.py: get_host_compute_stats()                   │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
----
 
-## Running the Application
-
-### 1. Start the FastAPI Backend
-```bash
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
-```
-Open docs at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-
-### 2. Start the Production React NOC Frontend
-```bash
-cd frontend
-npm install
-npm run dev -- --host 127.0.0.1 --port 3000
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### 3. (Optional) Run the Classic Streamlit Dashboard
-```bash
-streamlit run app.py --server.port 8501
-```
-│   • GET /api/network-environment                       │
-│   • OpenAPI docs (/docs)     • CORS & error handlers   │
-└────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -125,21 +105,39 @@ streamlit run app.py --server.port 8501
 
 ```
 netpulse-ai/
-├── app.py                  # Streamlit frontend dashboard
-├── requirements.txt        # Python dependencies
-├── pyproject.toml          # Project & pytest configuration
-├── README.md               # This file
+├── requirements.txt        # Python backend & core dependencies
+├── pyproject.toml          # Pytest configuration
+├── README.md               # Architecture and documentation
 │
 ├── backend/
 │   ├── __init__.py
-│   └── main.py             # FastAPI application & endpoints
+│   └── main.py             # FastAPI REST application & endpoints
 │
-├── tests/
+├── core/
 │   ├── __init__.py
-│   ├── test_backend.py     # Backend API unit tests (43 tests)
-│   └── test_frontend.py    # Frontend component & logic tests (19 tests)
+│   └── system_metrics.py   # Reusable host compute & network introspection
 │
-└── assets/                 # Static assets
+├── data/                   # Persistent data & SQLite storage
+├── reports/                # Exported diagnostic reports
+│
+├── frontend/               # React + TypeScript + Vite NOC frontend
+│   ├── src/
+│   │   ├── components/     # NOC dashboard, gauges, charts, topology, inventory
+│   │   ├── pages/          # 13 NOC routes (Overview, Diagnostics, Topology, etc.)
+│   │   ├── services/       # Axios API client & telemetry latency sampler
+│   │   ├── styles/         # Tailwind CSS & NOC dark design tokens
+│   │   ├── types/          # TypeScript interface contracts
+│   │   ├── App.tsx         # Central layout & routing
+│   │   └── main.tsx        # React entry point
+│   ├── public/             # Static public assets
+│   ├── package.json
+│   ├── vite.config.ts      # Vite dev server configuration (Port 5173)
+│   └── tsconfig.json
+│
+└── tests/
+    ├── __init__.py
+    ├── test_backend.py     # FastAPI endpoint and schema tests (43 tests)
+    └── test_core.py        # Core networking and introspection tests (9 tests)
 ```
 
 ---
@@ -149,26 +147,19 @@ netpulse-ai/
 ### Prerequisites
 
 - **Python 3.10+** (tested with 3.11 and 3.12)
-- **pip** package manager
+- **Node.js 18+** & **npm**
 
-### Steps
-
-```bash
-# 1. Navigate to the project directory
+### 1. Setup Backend Dependencies
+`ash
 cd netpulse-ai
-
-# 2. Create a virtual environment (recommended)
-python -m venv venv
-
-# 3. Activate the virtual environment
-#    Windows (PowerShell):
-.\venv\Scripts\Activate.ps1
-#    macOS / Linux:
-source venv/bin/activate
-
-# 4. Install dependencies
 pip install -r requirements.txt
-```
+`
+
+### 2. Setup Frontend Dependencies
+`ash
+cd frontend
+npm install
+`
 
 ---
 
@@ -178,29 +169,29 @@ You need **two terminal sessions** — one for the backend, one for the frontend
 
 ### Terminal 1 — Start the FastAPI Backend
 
-```bash
+`ash
 cd netpulse-ai
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
-```
+python -m uvicorn backend.main:app --reload
+`
 
-- Local API URL: `http://127.0.0.1:8000`
-- Interactive Swagger Documentation: `http://127.0.0.1:8000/docs`
+- Local API URL: http://127.0.0.1:8000
+- Interactive OpenAPI Docs: http://127.0.0.1:8000/docs
 
-### Terminal 2 — Start the Streamlit Frontend
+### Terminal 2 — Start the React NOC Frontend
 
-```bash
-cd netpulse-ai
-streamlit run app.py
-```
+`ash
+cd frontend
+npm run dev
+`
 
-- Local Dashboard URL: `http://localhost:8501`
+- Local Dashboard URL: http://localhost:5173
 
 ### Running the Automated Test Suite
 
-```bash
+`ash
 cd netpulse-ai
-python -m pytest tests/ -v -p no:asyncio -p no:anyio
-```
+pytest tests/ -v -p no:asyncio -p no:anyio
+`
 
 ---
 
