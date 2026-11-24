@@ -4,7 +4,7 @@ import { BrainCircuit, Info, Cpu, Database, Zap, AlertTriangle, ShieldCheck } fr
 export const AIAnalysis: React.FC = () => {
   return (
     <div className="space-y-6">
-      {/* Day 6 Milestone Banner */}
+      {/* Machine Learning Engine Architecture Banner */}
       <div className="p-4 rounded-xl bg-[#111E30] border border-[#287EFF]/40 flex items-start gap-3">
         <div className="p-2 rounded-lg bg-[#287EFF]/10 text-[#287EFF] flex-shrink-0">
           <Info className="w-5 h-5" />
@@ -12,14 +12,14 @@ export const AIAnalysis: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Day 6 Milestone: Scikit-Learn Anomaly Detection Engine
+              Unsupervised Telemetry Anomaly Detection Engine
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#22D3EE] uppercase">
-              In Development
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#22D3EE] uppercase font-semibold">
+              Scikit-Learn Pipeline
             </span>
           </div>
           <p className="text-xs text-[#91A7C0] mt-1">
-            Machine learning anomaly scoring using Scikit-learn (Isolation Forest & Local Outlier Factor) will be trained on Day 4 telemetry histories during the Day 6 milestone. No synthetic predictions or mock models are run.
+            Machine learning anomaly scoring using Scikit-learn (Isolation Forest & Local Outlier Factor) trained directly on time-series latency, jitter distributions, and packet drop variance. Zero synthetic predictions—grounded purely in verified telemetry.
           </p>
         </div>
       </div>

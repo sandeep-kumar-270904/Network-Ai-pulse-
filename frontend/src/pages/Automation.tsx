@@ -34,7 +34,7 @@ export const Automation: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Day 5 Milestone Banner */}
+      {/* Orchestration Banner */}
       <div className="p-4 rounded-xl bg-[#111E30] border border-[#287EFF]/40 flex items-start gap-3">
         <div className="p-2 rounded-lg bg-[#287EFF]/10 text-[#287EFF] flex-shrink-0">
           <Info className="w-5 h-5" />
@@ -42,14 +42,14 @@ export const Automation: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Day 5 Milestone: Test Automation & Cron Orchestration
+              Autonomous Test Scheduling & Cron Daemon Orchestration
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#22D3EE] uppercase">
-              In Development
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#00D69A] uppercase font-semibold">
+              Orchestrator Ready
             </span>
           </div>
           <p className="text-xs text-[#91A7C0] mt-1">
-            Automated test scheduling, periodic network regression triggers, and multi-endpoint orchestration routines will be activated during the Day 5 automation milestone.
+            Automated test scheduling, periodic network regression triggers, and multi-endpoint orchestration routines. Jobs dispatch background socket probes and persist metrics into SQLite at designated cron intervals.
           </p>
         </div>
       </div>

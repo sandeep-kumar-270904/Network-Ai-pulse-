@@ -16,7 +16,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
   Radio,
 } from 'lucide-react';
 
@@ -27,27 +26,58 @@ interface SidebarProps {
   version?: string;
 }
 
-export const NAV_ITEMS = [
-  { path: '/', label: 'NOC Overview', icon: LayoutDashboard },
-  { path: '/diagnostics', label: 'Network Diagnostics', icon: Activity, badge: 'Live' },
-  { path: '/topology', label: 'Network Topology', icon: Network },
-  { path: '/inventory', label: 'Infrastructure Inventory', icon: Server },
-  { path: '/performance', label: 'Performance Testing', icon: Zap, badge: 'Day 3' },
-  { path: '/automation', label: 'Test Automation', icon: Bot, badge: 'Day 5' },
-  { path: '/ai-analysis', label: 'AI Analysis', icon: BrainCircuit, badge: 'Day 6' },
-  { path: '/alerts', label: 'Alerts & Events', icon: Bell },
-  { path: '/history', label: 'Test History', icon: History },
-  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { path: '/reports', label: 'Reports', icon: FileText },
-  { path: '/system', label: 'System Information', icon: Cpu },
-  { path: '/settings', label: 'Settings', icon: Settings },
+export interface NavSection {
+  title: string;
+  items: {
+    path: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: string;
+    badgeColor?: string;
+  }[];
+}
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    title: 'OBSERVABILITY',
+    items: [
+      { path: '/', label: 'NOC Overview', icon: LayoutDashboard },
+      { path: '/topology', label: 'Network Topology', icon: Network },
+      { path: '/inventory', label: 'Infrastructure Inventory', icon: Server },
+    ],
+  },
+  {
+    title: 'ACTIVE DIAGNOSTICS & TESTING',
+    items: [
+      { path: '/diagnostics', label: 'Network Diagnostics', icon: Activity, badge: 'LIVE', badgeColor: 'text-[#00D69A] border-[#00D69A]/40 bg-[#00D69A]/10' },
+      { path: '/performance', label: 'Synthetic Performance', icon: Zap, badge: 'L4-L7', badgeColor: 'text-[#F5B82E] border-[#F5B82E]/40 bg-[#F5B82E]/10' },
+      { path: '/automation', label: 'Automated Test Suites', icon: Bot, badge: 'CRON', badgeColor: 'text-[#287EFF] border-[#287EFF]/40 bg-[#287EFF]/10' },
+      { path: '/history', label: 'Telemetry History', icon: History, badge: 'SQLITE', badgeColor: 'text-[#22D3EE] border-[#22D3EE]/40 bg-[#22D3EE]/10' },
+    ],
+  },
+  {
+    title: 'INTELLIGENCE & AUDITING',
+    items: [
+      { path: '/ai-analysis', label: 'Anomaly Analysis', icon: BrainCircuit, badge: 'ML', badgeColor: 'text-[#22D3EE] border-[#22D3EE]/40 bg-[#22D3EE]/10' },
+      { path: '/alerts', label: 'Operational Alerts', icon: Bell },
+      { path: '/analytics', label: 'Performance Analytics', icon: BarChart3 },
+      { path: '/reports', label: 'Technical Reports', icon: FileText },
+    ],
+  },
+  {
+    title: 'SYSTEM & CONFIGURATION',
+    items: [
+      { path: '/system', label: 'Host & Platform Info', icon: Cpu },
+      { path: '/settings', label: 'Platform Settings', icon: Settings },
+    ],
+  },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggle,
   backendOnline,
-  version = 'v1.0.0-day1',
+  version = 'v2.4.0-NOC',
 }) => {
   return (
     <aside
@@ -56,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }`}
     >
       {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-[#203750] bg-[#091525]">
+      <div className="h-16 flex items-center justify-between px-4 border-b border-[#203750] bg-[#091525] flex-shrink-0">
         {!collapsed && (
           <div className="flex items-center gap-2.5 overflow-hidden">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#22D3EE] to-[#287EFF] flex items-center justify-center flex-shrink-0 shadow-lg shadow-cyan-500/20">
@@ -88,41 +118,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      {/* Navigation List */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                  isActive
-                    ? 'bg-[#13243A] text-[#22D3EE] border border-[#22D3EE]/40 shadow-sm'
-                    : 'text-[#91A7C0] hover:text-[#EAF3FF] hover:bg-[#0D192B]'
-                }`
-              }
-            >
-              <Icon className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" />
-              {!collapsed && (
-                <div className="flex items-center justify-between flex-1 truncate">
-                  <span className="truncate">{item.label}</span>
-                  {item.badge && (
-                    <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-[#111E30] text-[#647C96] border border-[#203750] uppercase tracking-wider font-mono">
-                      {item.badge}
-                    </span>
+      {/* Navigation List grouped by Section */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4 custom-scrollbar">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="space-y-1">
+            {!collapsed && (
+              <div className="px-3 pt-2 pb-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-[#647C96]">
+                {section.title}
+              </div>
+            )}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  title={collapsed ? item.label : undefined}
+                  className={({ isActive }) =>
+                    `group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#13243A] text-[#22D3EE] border border-[#22D3EE]/40 shadow-sm'
+                        : 'text-[#91A7C0] hover:text-[#EAF3FF] hover:bg-[#0D192B]'
+                    }`
+                  }
+                >
+                  <Icon className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                  {!collapsed && (
+                    <div className="flex items-center justify-between flex-1 truncate">
+                      <span className="truncate">{item.label}</span>
+                      {item.badge && (
+                        <span
+                          className={`ml-2 text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold uppercase tracking-wider border ${
+                            item.badgeColor || 'bg-[#111E30] text-[#647C96] border-[#203750]'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-            </NavLink>
-          );
-        })}
+                </NavLink>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Backend Status Footer */}
-      <div className="p-3 border-t border-[#203750] bg-[#070D18]">
+      <div className="p-3 border-t border-[#203750] bg-[#070D18] flex-shrink-0">
         {!collapsed ? (
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">

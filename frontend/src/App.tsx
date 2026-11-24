@@ -49,15 +49,15 @@ const AppLayout: React.FC = () => {
     },
     '/performance': {
       title: 'Performance Testing',
-      subtitle: 'Throughput capacity and jitter benchmarking (Day 3 Milestone).',
+      subtitle: 'Throughput capacity, UDP packet jitter, and RFC 2544 benchmark configuration.',
     },
     '/automation': {
       title: 'Test Automation',
-      subtitle: 'Scheduled cron jobs and autonomous network regression routines (Day 5 Milestone).',
+      subtitle: 'Scheduled cron jobs and autonomous network regression routines.',
     },
     '/ai-analysis': {
       title: 'AI Anomaly Detection',
-      subtitle: 'Unsupervised ML anomaly scoring with Scikit-learn (Day 6 Milestone).',
+      subtitle: 'Statistical variance modeling and Scikit-learn unsupervised anomaly detection.',
     },
     '/alerts': {
       title: 'Alerts & Events',

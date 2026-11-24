@@ -9,7 +9,7 @@ export const Performance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Day 3 Milestone Banner */}
+      {/* Performance Engine Architecture Banner */}
       <div className="p-4 rounded-xl bg-[#111E30] border border-[#287EFF]/40 flex items-start gap-3">
         <div className="p-2 rounded-lg bg-[#287EFF]/10 text-[#287EFF] flex-shrink-0">
           <Info className="w-5 h-5" />
@@ -17,14 +17,14 @@ export const Performance: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Day 3 Milestone: High-Throughput Performance Engine
+              RFC 2544 / RFC 6349 Synthetic Performance Benchmark Suite
             </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#22D3EE] uppercase">
-              In Development
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#22D3EE] uppercase font-semibold">
+              Specification Engine
             </span>
           </div>
           <p className="text-xs text-[#91A7C0] mt-1">
-            Multi-stream TCP throughput testing, UDP jitter benchmarks, and path MTU discovery are staged for Day 3 implementation. Execution engines remain paused until verification tests are deployed.
+            Configures multi-stream TCP throughput testing, UDP packet jitter verification, and path MTU discovery profiles. In production testbeds (e.g. LANforge), control plane sends socket parameters to dedicated hardware/kernel traffic generators.
           </p>
         </div>
       </div>
