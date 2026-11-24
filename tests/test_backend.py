@@ -24,6 +24,10 @@ from backend.main import (
     system_information,
     network_environment,
     module_status,
+    run_ping_diagnostic,
+    diagnostic_history,
+    dynamic_topology,
+    PingRequest,
 )
 
 
@@ -258,7 +262,31 @@ class TestConsistency:
         assert r["version"] == h["version"]
 
     def test_all_responses_are_json_serializable(self):
-        for fn in [root, health_check, system_information, network_environment, module_status]:
+        for fn in [root, health_check, system_information, network_environment, module_status, diagnostic_history, dynamic_topology]:
             result = fn()
             serialized = json.dumps(result)
             assert len(serialized) > 0
+
+
+class TestDiagnosticsAndTopologyEndpoints:
+    def test_topology_returns_nodes_and_edges(self):
+        result = dynamic_topology()
+        assert result["status"] == "ok"
+        assert "nodes" in result
+        assert "edges" in result
+        assert len(result["nodes"]) >= 3
+        assert len(result["edges"]) >= 2
+
+    def test_diagnostic_history_returns_records(self):
+        result = diagnostic_history(limit=10)
+        assert result["status"] == "ok"
+        assert "records" in result
+        assert isinstance(result["records"], list)
+
+    def test_ping_endpoint_returns_metrics(self):
+        req = PingRequest(target="127.0.0.1", count=1, timeout_ms=1000)
+        result = run_ping_diagnostic(req)
+        assert result["status"] == "ok"
+        assert "data" in result
+        assert result["data"]["target"] == "127.0.0.1"
+        assert result["data"]["packets_sent"] == 1

@@ -17,6 +17,14 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
+from core.diagnostics import (
+    execute_ping,
+    get_default_gateway,
+    get_arp_neighbors,
+    get_test_history,
+)
 
 # ---------------------------------------------------------------------------
 # Application metadata
@@ -155,10 +163,16 @@ def _network_environment() -> Dict[str, Any]:
             "ipv6_addresses": [],
         })
 
+    gateway_info = get_default_gateway()
+    arp_neighbors = get_arp_neighbors()
+
     return {
         "hostname": hostname,
         "primary_ip": primary_ip,
+        "default_gateway": gateway_info.get("gateway_ip") if gateway_info else None,
+        "outbound_interface_ip": gateway_info.get("interface_ip") if gateway_info else None,
         "interfaces": interfaces,
+        "arp_neighbors": arp_neighbors,
         "scan_performed": False,
         "method": "passive_local_enumeration",
     }
@@ -253,8 +267,8 @@ def module_status() -> Dict[str, Any]:
     modules = [
         {
             "name": "Network Diagnostics",
-            "description": "Ping, traceroute, DNS lookup, and port scanning tools.",
-            "status": "coming_soon",
+            "description": "Real ICMP socket ping, RTT latency, packet loss, and jitter analysis.",
+            "status": "active",
             "icon": "🔍",
         },
         {
@@ -292,4 +306,187 @@ def module_status() -> Dict[str, Any]:
         "status": "ok",
         "timestamp": _utc_now(),
         "modules": modules,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Diagnostics & Topology Routes
+# ---------------------------------------------------------------------------
+class PingRequest(BaseModel):
+    target: str = Field(default="8.8.8.8", description="Target hostname or IP address")
+    count: int = Field(default=4, ge=1, le=10, description="Packet count (1-10)")
+    packet_size: int = Field(default=32, ge=16, le=1472, description="Packet payload size in bytes")
+    timeout_ms: int = Field(default=2000, ge=200, le=5000, description="Socket response timeout in ms")
+
+
+@app.post("/api/diagnostics/ping", tags=["Diagnostics"])
+def run_ping_diagnostic(req: PingRequest) -> Dict[str, Any]:
+    """Execute real ICMP probe and record the telemetry run."""
+    try:
+        result = execute_ping(
+            target=req.target,
+            count=req.count,
+            packet_size=req.packet_size,
+            timeout_ms=req.timeout_ms,
+        )
+        return {
+            "status": "ok",
+            "timestamp": _utc_now(),
+            "data": result,
+        }
+    except Exception as exc:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": str(exc),
+                "timestamp": _utc_now(),
+            },
+        )
+
+
+@app.get("/api/diagnostics/history", tags=["Diagnostics"])
+def diagnostic_history(limit: int = 50) -> Dict[str, Any]:
+    """Return historical records of executed diagnostic probes."""
+    return {
+        "status": "ok",
+        "timestamp": _utc_now(),
+        "records": get_test_history(limit=limit),
+    }
+
+
+@app.get("/api/network-topology", tags=["Topology"])
+def dynamic_topology() -> Dict[str, Any]:
+    """Return dynamic node-link graph based on real gateway, host, and neighbors."""
+    gw_info = get_default_gateway() or {"gateway_ip": "192.168.1.1", "interface_ip": "127.0.0.1"}
+    gw_ip = gw_info.get("gateway_ip", "192.168.1.1")
+    host_ip = gw_info.get("interface_ip", "127.0.0.1")
+    hostname = socket.gethostname()
+    arp_neighbors = get_arp_neighbors()
+
+    nodes = [
+        {
+            "id": "node-gw",
+            "type": "default",
+            "position": {"x": 300, "y": 40},
+            "data": {
+                "label": "Core Default Gateway",
+                "ip": gw_ip,
+                "type": "gateway",
+                "status": "online",
+                "interface": "uplink0",
+            },
+            "style": {
+                "background": "#13243A",
+                "color": "#EAF3FF",
+                "border": "1px solid #22D3EE",
+                "borderRadius": "10px",
+                "padding": "10px",
+                "fontFamily": "JetBrains Mono",
+                "fontSize": "11px",
+                "width": 190,
+            },
+        },
+        {
+            "id": "node-host",
+            "type": "default",
+            "position": {"x": 140, "y": 180},
+            "data": {
+                "label": f"Local Host ({hostname})",
+                "ip": host_ip,
+                "type": "server",
+                "status": "online",
+                "interface": "wlan0",
+            },
+            "style": {
+                "background": "#0D192B",
+                "color": "#EAF3FF",
+                "border": "1px solid #00D69A",
+                "borderRadius": "10px",
+                "padding": "10px",
+                "fontFamily": "JetBrains Mono",
+                "fontSize": "11px",
+                "width": 200,
+            },
+        },
+        {
+            "id": "node-public-dns",
+            "type": "default",
+            "position": {"x": 460, "y": 180},
+            "data": {
+                "label": "Cloudflare DNS (Edge)",
+                "ip": "1.1.1.1",
+                "type": "probe",
+                "status": "online",
+                "interface": "wan",
+            },
+            "style": {
+                "background": "#111E30",
+                "color": "#EAF3FF",
+                "border": "1px solid #287EFF",
+                "borderRadius": "10px",
+                "padding": "10px",
+                "fontFamily": "JetBrains Mono",
+                "fontSize": "11px",
+                "width": 180,
+            },
+        },
+    ]
+
+    edges = [
+        {
+            "id": "edge-gw-host",
+            "source": "node-gw",
+            "target": "node-host",
+            "animated": True,
+            "style": {"stroke": "#00D69A", "strokeWidth": 2},
+        },
+        {
+            "id": "edge-gw-dns",
+            "source": "node-gw",
+            "target": "node-public-dns",
+            "animated": True,
+            "style": {"stroke": "#287EFF", "strokeWidth": 2},
+        },
+    ]
+
+    # Add real dynamic ARP neighbors if detected
+    for idx, neighbor in enumerate(arp_neighbors[:2]):
+        if neighbor["ip"] != gw_ip and neighbor["ip"] != host_ip:
+            n_id = f"node-neighbor-{idx+1}"
+            nodes.append({
+                "id": n_id,
+                "type": "default",
+                "position": {"x": 80 + idx * 240, "y": 300},
+                "data": {
+                    "label": f"LAN Host {idx+1}",
+                    "ip": neighbor["ip"],
+                    "type": "switch",
+                    "status": "online",
+                    "interface": neighbor.get("mac", "dynamic"),
+                },
+                "style": {
+                    "background": "#111E30",
+                    "color": "#EAF3FF",
+                    "border": "1px solid #203750",
+                    "borderRadius": "10px",
+                    "padding": "10px",
+                    "fontFamily": "JetBrains Mono",
+                    "fontSize": "11px",
+                    "width": 180,
+                },
+            })
+            edges.append({
+                "id": f"edge-gw-neighbor-{idx+1}",
+                "source": "node-gw",
+                "target": n_id,
+                "style": {"stroke": "#203750", "strokeWidth": 1.5},
+            })
+
+    return {
+        "status": "ok",
+        "timestamp": _utc_now(),
+        "nodes": nodes,
+        "edges": edges,
+        "gateway": gw_info,
     }

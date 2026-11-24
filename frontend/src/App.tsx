@@ -37,7 +37,7 @@ const AppLayout: React.FC = () => {
     },
     '/diagnostics': {
       title: 'Network Diagnostics',
-      subtitle: 'Socket ICMP probe transmitters and traceroute hops (Day 2 Milestone).',
+      subtitle: 'Live ICMP socket probe transmitters, real packet RTT, and jitter telemetry.',
     },
     '/topology': {
       title: 'Network Topology',

@@ -29,7 +29,7 @@ interface SidebarProps {
 
 export const NAV_ITEMS = [
   { path: '/', label: 'NOC Overview', icon: LayoutDashboard },
-  { path: '/diagnostics', label: 'Network Diagnostics', icon: Activity, badge: 'Day 2' },
+  { path: '/diagnostics', label: 'Network Diagnostics', icon: Activity, badge: 'Live' },
   { path: '/topology', label: 'Network Topology', icon: Network },
   { path: '/inventory', label: 'Infrastructure Inventory', icon: Server },
   { path: '/performance', label: 'Performance Testing', icon: Zap, badge: 'Day 3' },

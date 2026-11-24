@@ -57,3 +57,77 @@ export const fetchModules = async (): Promise<{ modules: ModuleStatusItem[]; err
     return { modules: [], error: err instanceof Error ? err.message : 'Failed to fetch modules' };
   }
 };
+
+export interface PingResultPayload {
+  id: string;
+  timestamp: string;
+  test_type: string;
+  target: string;
+  resolved_ip: string;
+  status: 'passed' | 'failed';
+  duration_ms: number;
+  packets_sent: number;
+  packets_received: number;
+  packet_loss_pct: number;
+  min_rtt_ms: number | null;
+  avg_rtt_ms: number | null;
+  max_rtt_ms: number | null;
+  jitter_ms: number;
+  replies: Array<{
+    seq: number;
+    ip: string;
+    bytes: number;
+    rtt_ms: number | null;
+    ttl: number | null;
+    status: string;
+  }>;
+  summary: string;
+  raw_output: string;
+}
+
+export const executePingDiagnostic = async (
+  target: string,
+  count: number = 4,
+  packetSize: number = 32,
+  timeoutMs: number = 2000,
+): Promise<{ data: PingResultPayload | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/diagnostics/ping', {
+      target,
+      count,
+      packet_size: packetSize,
+      timeout_ms: timeoutMs,
+    });
+    return { data: res.data?.data || null, error: null };
+  } catch (err: unknown) {
+    const msg = axios.isAxiosError(err)
+      ? err.response?.data?.message || err.message
+      : err instanceof Error
+      ? err.message
+      : 'Diagnostic probe execution failed';
+    return { data: null, error: msg };
+  }
+};
+
+export const fetchDiagnosticHistory = async (limit: number = 50): Promise<{ records: any[]; error: string | null }> => {
+  try {
+    const res = await apiClient.get(`/api/diagnostics/history?limit=${limit}`);
+    return { records: res.data?.records || [], error: null };
+  } catch (err: unknown) {
+    return { records: [], error: err instanceof Error ? err.message : 'Failed to fetch history' };
+  }
+};
+
+export const fetchDynamicTopology = async (): Promise<{ nodes: any[]; edges: any[]; gateway: any; error: string | null }> => {
+  try {
+    const res = await apiClient.get('/api/network-topology');
+    return {
+      nodes: res.data?.nodes || [],
+      edges: res.data?.edges || [],
+      gateway: res.data?.gateway || null,
+      error: null,
+    };
+  } catch (err: unknown) {
+    return { nodes: [], edges: [], gateway: null, error: err instanceof Error ? err.message : 'Failed to fetch topology' };
+  }
+};

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -13,6 +13,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Router, Server, Cpu, Radio, Shield, CheckCircle2, AlertCircle } from 'lucide-react';
+import { fetchDynamicTopology } from '../../services/api';
 
 interface DeviceData {
   label: string;
@@ -169,6 +170,17 @@ export const TopologyGraph: React.FC = () => {
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+
+  useEffect(() => {
+    fetchDynamicTopology().then(({ nodes: dynamicNodes, edges: dynamicEdges }) => {
+      if (dynamicNodes && dynamicNodes.length > 0) {
+        setNodes(dynamicNodes);
+      }
+      if (dynamicEdges && dynamicEdges.length > 0) {
+        setEdges(dynamicEdges);
+      }
+    });
+  }, []);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
