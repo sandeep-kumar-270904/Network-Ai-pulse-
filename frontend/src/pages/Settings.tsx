@@ -1,16 +1,32 @@
-import React, { useState } from 'react';
-import { Settings, Shield, Globe, Sliders, Save, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, Shield, Globe, Save, CheckCircle2 } from 'lucide-react';
 import { API_BASE_URL } from '../services/api';
 
 export const SettingsPage: React.FC = () => {
-  const [gatewayUrl, setGatewayUrl] = useState(API_BASE_URL);
-  const [pollingCadence, setPollingCadence] = useState(5);
-  const [enforcePassive, setEnforcePassive] = useState(true);
-  const [requireConfirmation, setRequireConfirmation] = useState(true);
+  const [gatewayUrl, setGatewayUrl] = useState(
+    () => localStorage.getItem('netpulse_gateway_url') || API_BASE_URL
+  );
+  const [pollingCadence, setPollingCadence] = useState(
+    () => Number(localStorage.getItem('netpulse_polling_sec')) || 5
+  );
+  const [enforcePassive, setEnforcePassive] = useState(
+    () => localStorage.getItem('netpulse_passive_only') !== 'false'
+  );
+  const [requireConfirmation, setRequireConfirmation] = useState(
+    () => localStorage.getItem('netpulse_confirm_probes') !== 'false'
+  );
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    // Sync defaults on initial mount if unset
+  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    localStorage.setItem('netpulse_gateway_url', gatewayUrl);
+    localStorage.setItem('netpulse_polling_sec', String(pollingCadence));
+    localStorage.setItem('netpulse_passive_only', String(enforcePassive));
+    localStorage.setItem('netpulse_confirm_probes', String(requireConfirmation));
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -23,7 +39,7 @@ export const SettingsPage: React.FC = () => {
             <Settings className="w-4 h-4 text-[#22D3EE]" /> Platform & Telemetry Configuration
           </h2>
           <p className="text-xs text-[#91A7C0] mt-0.5">
-            Configure backend connection endpoints, telemetry sampling intervals, and security policies.
+            Configure FastAPI gateway binding, telemetry sampling cadence, and operational safety policies.
           </p>
         </div>
       </div>
@@ -48,7 +64,7 @@ export const SettingsPage: React.FC = () => {
                 className="w-full px-3 py-2 rounded-lg bg-[#111E30] border border-[#203750] text-[#EAF3FF] focus:border-[#22D3EE] focus:outline-none"
               />
               <p className="text-[11px] text-[#647C96] mt-1">
-                Local FastApi uvicorn process running on localhost port 8000.
+                Local FastAPI Uvicorn server running on localhost port 8000.
               </p>
             </div>
 
@@ -95,7 +111,7 @@ export const SettingsPage: React.FC = () => {
                   Enforce Passive Local Enumeration
                 </span>
                 <span className="text-[11px] text-[#91A7C0]">
-                  Strictly prohibits unauthorized external port scanning and subnet sweeping.
+                  Strictly prohibits unauthorized external subnet port sweeps; relies on kernel ARP cache and local routing tables.
                 </span>
               </div>
             </label>
@@ -109,10 +125,10 @@ export const SettingsPage: React.FC = () => {
               />
               <div>
                 <span className="font-mono font-semibold text-[#EAF3FF] block">
-                  Require Operator Confirmation for Raw Packet Sockets
+                  Require Manual Target Selection for Active Socket Probes
                 </span>
                 <span className="text-[11px] text-[#91A7C0]">
-                  Prompts manual operator approval prior to executing Day 2 socket transmitters.
+                  Ensures ICMP, TCP handshake, and traceroute probes only run against explicit operator-approved targets.
                 </span>
               </div>
             </label>
@@ -123,7 +139,7 @@ export const SettingsPage: React.FC = () => {
         <div className="flex items-center justify-between pt-2">
           {saved ? (
             <span className="text-xs font-mono text-[#00D69A] flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" /> Preferences applied to active session
+              <CheckCircle2 className="w-4 h-4" /> Settings saved to browser storage
             </span>
           ) : (
             <span />

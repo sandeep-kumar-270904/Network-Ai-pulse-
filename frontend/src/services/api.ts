@@ -1,11 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
-import { HealthResponse, SystemInfo, NetworkEnvironment } from '../types';
+import { HealthResponse } from '../types';
 
 export const API_BASE_URL = 'http://127.0.0.1:8000';
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 5000,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -18,6 +18,13 @@ export interface ModuleStatusItem {
   icon: string;
 }
 
+const extractAxiosError = (err: unknown, fallback: string): string => {
+  if (axios.isAxiosError(err)) {
+    return err.response?.data?.message || err.message;
+  }
+  return err instanceof Error ? err.message : fallback;
+};
+
 export const fetchHealth = async (): Promise<{ data: HealthResponse | null; latencyMs: number; error: string | null }> => {
   const start = performance.now();
   try {
@@ -26,8 +33,7 @@ export const fetchHealth = async (): Promise<{ data: HealthResponse | null; late
     return { data: res.data, latencyMs, error: null };
   } catch (err: unknown) {
     const latencyMs = Math.round(performance.now() - start);
-    const msg = err instanceof Error ? err.message : 'Backend unreachable';
-    return { data: null, latencyMs, error: msg };
+    return { data: null, latencyMs, error: extractAxiosError(err, 'Backend unreachable') };
   }
 };
 
@@ -36,7 +42,7 @@ export const fetchSystemInfo = async (): Promise<{ data: any | null; error: stri
     const res = await apiClient.get('/api/system');
     return { data: res.data, error: null };
   } catch (err: unknown) {
-    return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch system info' };
+    return { data: null, error: extractAxiosError(err, 'Failed to fetch system info') };
   }
 };
 
@@ -45,7 +51,7 @@ export const fetchNetworkEnv = async (): Promise<{ data: any | null; error: stri
     const res = await apiClient.get('/api/network-environment');
     return { data: res.data?.network_environment || null, error: null };
   } catch (err: unknown) {
-    return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch network environment' };
+    return { data: null, error: extractAxiosError(err, 'Failed to fetch network environment') };
   }
 };
 
@@ -54,7 +60,7 @@ export const fetchModules = async (): Promise<{ modules: ModuleStatusItem[]; err
     const res = await apiClient.get('/api/modules');
     return { modules: res.data?.modules || [], error: null };
   } catch (err: unknown) {
-    return { modules: [], error: err instanceof Error ? err.message : 'Failed to fetch modules' };
+    return { modules: [], error: extractAxiosError(err, 'Failed to fetch modules') };
   }
 };
 
@@ -76,13 +82,14 @@ export interface PingResultPayload {
   replies: Array<{
     seq: number;
     ip: string;
-    bytes: number;
+    bytes?: number;
+    port?: number;
     rtt_ms: number | null;
-    ttl: number | null;
+    ttl?: number | null;
     status: string;
   }>;
   summary: string;
-  raw_output: string;
+  raw_output?: string;
 }
 
 export const executePingDiagnostic = async (
@@ -97,15 +104,44 @@ export const executePingDiagnostic = async (
       count,
       packet_size: packetSize,
       timeout_ms: timeoutMs,
-    });
+    }, { timeout: 25000 });
     return { data: res.data?.data || null, error: null };
   } catch (err: unknown) {
-    const msg = axios.isAxiosError(err)
-      ? err.response?.data?.message || err.message
-      : err instanceof Error
-      ? err.message
-      : 'Diagnostic probe execution failed';
-    return { data: null, error: msg };
+    return { data: null, error: extractAxiosError(err, 'ICMP diagnostic execution failed') };
+  }
+};
+
+export const executeTcpProbeDiagnostic = async (
+  target: string,
+  port: number = 443,
+  count: number = 4,
+  timeoutMs: number = 2000,
+): Promise<{ data: PingResultPayload | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/diagnostics/tcp-probe', {
+      target,
+      port,
+      count,
+      timeout_ms: timeoutMs,
+    }, { timeout: 25000 });
+    return { data: res.data?.data || null, error: null };
+  } catch (err: unknown) {
+    return { data: null, error: extractAxiosError(err, 'TCP handshake probe failed') };
+  }
+};
+
+export const executeTracerouteDiagnostic = async (
+  target: string,
+  maxHops: number = 12,
+): Promise<{ data: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/diagnostics/traceroute', {
+      target,
+      max_hops: maxHops,
+    }, { timeout: 35000 });
+    return { data: res.data?.data || null, error: null };
+  } catch (err: unknown) {
+    return { data: null, error: extractAxiosError(err, 'Traceroute execution failed') };
   }
 };
 
@@ -114,7 +150,7 @@ export const fetchDiagnosticHistory = async (limit: number = 50): Promise<{ reco
     const res = await apiClient.get(`/api/diagnostics/history?limit=${limit}`);
     return { records: res.data?.records || [], error: null };
   } catch (err: unknown) {
-    return { records: [], error: err instanceof Error ? err.message : 'Failed to fetch history' };
+    return { records: [], error: extractAxiosError(err, 'Failed to fetch history') };
   }
 };
 
@@ -128,6 +164,167 @@ export const fetchDynamicTopology = async (): Promise<{ nodes: any[]; edges: any
       error: null,
     };
   } catch (err: unknown) {
-    return { nodes: [], edges: [], gateway: null, error: err instanceof Error ? err.message : 'Failed to fetch topology' };
+    return { nodes: [], edges: [], gateway: null, error: extractAxiosError(err, 'Failed to fetch topology') };
+  }
+};
+
+// Performance Benchmarking
+export const executePerformanceBenchmark = async (
+  mode: 'throughput_tcp' | 'jitter_udp' | 'mtu_sweep',
+  target: string,
+  duration: number,
+  streams: number,
+): Promise<{ data: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/performance/benchmark', {
+      mode,
+      target,
+      duration,
+      streams,
+    }, { timeout: 30000 });
+    return { data: res.data?.data || null, error: null };
+  } catch (err: unknown) {
+    return { data: null, error: extractAxiosError(err, 'Benchmark failed') };
+  }
+};
+
+// Test Automation
+export const fetchAutomationJobs = async (): Promise<{ jobs: any[]; error: string | null }> => {
+  try {
+    const res = await apiClient.get('/api/automation/jobs');
+    return { jobs: res.data?.jobs || [], error: null };
+  } catch (err: unknown) {
+    return { jobs: [], error: extractAxiosError(err, 'Failed to fetch automation jobs') };
+  }
+};
+
+export const createAutomationJob = async (
+  name: string,
+  target: string,
+  testType: string,
+  intervalSeconds: number,
+): Promise<{ job: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/automation/jobs', {
+      name,
+      target,
+      test_type: testType,
+      interval_seconds: intervalSeconds,
+    });
+    return { job: res.data?.job || null, error: null };
+  } catch (err: unknown) {
+    return { job: null, error: extractAxiosError(err, 'Failed to create job') };
+  }
+};
+
+export const toggleAutomationJob = async (jobId: string, enabled: boolean): Promise<boolean> => {
+  try {
+    await apiClient.patch(`/api/automation/jobs/${jobId}`, { enabled });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const runAutomationJobNow = async (jobId: string): Promise<{ data: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post(`/api/automation/jobs/${jobId}/run`, {}, { timeout: 25000 });
+    return { data: res.data?.data || null, error: null };
+  } catch (err: unknown) {
+    return { data: null, error: extractAxiosError(err, 'Failed to run job') };
+  }
+};
+
+export const deleteAutomationJob = async (jobId: string): Promise<boolean> => {
+  try {
+    await apiClient.delete(`/api/automation/jobs/${jobId}`);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Alerts & Events
+export const fetchAlerts = async (limit: number = 100): Promise<{ events: any[]; error: string | null }> => {
+  try {
+    const res = await apiClient.get(`/api/alerts?limit=${limit}`);
+    return { events: res.data?.events || [], error: null };
+  } catch (err: unknown) {
+    return { events: [], error: extractAxiosError(err, 'Failed to fetch alerts') };
+  }
+};
+
+export const acknowledgeAlert = async (eventId: string): Promise<boolean> => {
+  try {
+    await apiClient.post(`/api/alerts/${eventId}/acknowledge`);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const clearAlerts = async (): Promise<boolean> => {
+  try {
+    await apiClient.delete('/api/alerts');
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Analytics & AI Anomaly Detection
+export const fetchAnalyticsSummary = async (limit: number = 100): Promise<{ analytics: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.get(`/api/analytics?limit=${limit}`);
+    return { analytics: res.data?.analytics || null, error: null };
+  } catch (err: unknown) {
+    return { analytics: null, error: extractAxiosError(err, 'Failed to fetch analytics') };
+  }
+};
+
+export const runAiAnomalyScan = async (): Promise<{ analysis: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/ai/analyze', {}, { timeout: 20000 });
+    return { analysis: res.data?.analysis || null, error: null };
+  } catch (err: unknown) {
+    return { analysis: null, error: extractAxiosError(err, 'AI anomaly scan failed') };
+  }
+};
+
+// Dynamic Inventory
+export const fetchInventoryNodes = async (): Promise<{ nodes: any[]; error: string | null }> => {
+  try {
+    const res = await apiClient.get('/api/inventory');
+    return { nodes: res.data?.nodes || [], error: null };
+  } catch (err: unknown) {
+    return { nodes: [], error: extractAxiosError(err, 'Failed to fetch inventory') };
+  }
+};
+
+export const addInventoryNode = async (
+  name: string,
+  ip: string,
+  nodeType: string,
+  iface: string,
+): Promise<{ node: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post('/api/inventory', {
+      name,
+      ip,
+      node_type: nodeType,
+      interface: iface,
+    });
+    return { node: res.data?.node || null, error: null };
+  } catch (err: unknown) {
+    return { node: null, error: extractAxiosError(err, 'Failed to add node') };
+  }
+};
+
+export const deleteInventoryNode = async (nodeId: string): Promise<boolean> => {
+  try {
+    await apiClient.delete(`/api/inventory/${nodeId}`);
+    return true;
+  } catch {
+    return false;
   }
 };

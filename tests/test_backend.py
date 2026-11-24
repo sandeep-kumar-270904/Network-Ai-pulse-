@@ -28,6 +28,15 @@ from backend.main import (
     diagnostic_history,
     dynamic_topology,
     PingRequest,
+    BenchmarkRequest,
+    TcpProbeRequest,
+    run_tcp_probe,
+    run_benchmark,
+    list_automation_jobs,
+    list_alerts,
+    analytics_summary,
+    ai_anomaly_scan,
+    list_inventory,
 )
 
 
@@ -289,4 +298,46 @@ class TestDiagnosticsAndTopologyEndpoints:
         assert result["status"] == "ok"
         assert "data" in result
         assert result["data"]["target"] == "127.0.0.1"
+        assert result["data"]["packets_sent"] == 1
+
+
+class TestEnterpriseEngines:
+    def test_local_tcp_throughput_benchmark(self):
+        req = BenchmarkRequest(mode="throughput_tcp", target="127.0.0.1", duration=1, streams=2)
+        result = run_benchmark(req)
+        assert result["status"] == "ok"
+        assert result["data"]["throughput_mbps"] > 0
+
+    def test_automation_jobs_list(self):
+        result = list_automation_jobs()
+        assert result["status"] == "ok"
+        assert isinstance(result["jobs"], list)
+        assert len(result["jobs"]) >= 1
+
+    def test_alerts_list(self):
+        result = list_alerts(limit=10)
+        assert result["status"] == "ok"
+        assert isinstance(result["events"], list)
+
+    def test_analytics_summary(self):
+        result = analytics_summary(limit=20)
+        assert result["status"] == "ok"
+        assert "analytics" in result
+        assert "total_tests" in result["analytics"]
+
+    def test_ai_anomaly_scan(self):
+        result = ai_anomaly_scan()
+        assert result["status"] == "ok"
+        assert "analysis" in result
+        assert "model" in result["analysis"]
+
+    def test_inventory_list(self):
+        result = list_inventory()
+        assert result["status"] == "ok"
+        assert len(result["nodes"]) >= 2
+
+    def test_tcp_probe_closed_port(self):
+        req = TcpProbeRequest(target="127.0.0.1", port=65432, count=1, timeout_ms=300)
+        result = run_tcp_probe(req)
+        assert result["status"] == "ok"
         assert result["data"]["packets_sent"] == 1

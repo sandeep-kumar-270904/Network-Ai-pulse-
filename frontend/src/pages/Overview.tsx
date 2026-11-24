@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Server, Radio, Shield, CheckCircle2, AlertTriangle, ArrowUpRight } from 'lucide-react';
+import { Activity, Server, Radio, Shield } from 'lucide-react';
 import { KpiCard } from '../components/dashboard/KpiCard';
 import { StatusPanel } from '../components/dashboard/StatusPanel';
 import { ResourceGauge } from '../components/charts/ResourceGauge';
 import { PerformanceChart } from '../components/charts/PerformanceChart';
 import { TopologyGraph } from '../components/topology/TopologyGraph';
 import { InventoryTable } from '../components/inventory/InventoryTable';
-import { fetchHealth, fetchSystemInfo, fetchNetworkEnv } from '../services/api';
+import { fetchAnalyticsSummary, fetchInventoryNodes } from '../services/api';
 import { HealthResponse } from '../types';
 
 interface OverviewProps {
@@ -24,43 +24,84 @@ export const Overview: React.FC<OverviewProps> = ({
   system,
   networkEnv,
 }) => {
+  const [analytics, setAnalytics] = useState<any | null>(null);
+  const [nodeCount, setNodeCount] = useState<number>(0);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const [anaRes, invRes] = await Promise.all([
+        fetchAnalyticsSummary(30),
+        fetchInventoryNodes(),
+      ]);
+      if (!active) return;
+      if (anaRes.analytics) setAnalytics(anaRes.analytics);
+      if (invRes.nodes) setNodeCount(invRes.nodes.length);
+    };
+    load();
+    const timer = setInterval(load, 10000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [backendOnline]);
+
   const sysInfo = system?.system || health?.system;
-  const memoryUsedPercent = sysInfo?.memory_used_percent ?? 38.4;
-  const cpuCount = sysInfo?.cpu_count_logical ?? 4;
-  const interfaceCount = networkEnv?.interfaces?.length ?? 2;
+  const memoryUsedPercent = sysInfo?.memory_used_percent ?? 0;
+  const cpuCount = sysInfo?.cpu_count_logical ?? 1;
+  const defaultGw = networkEnv?.default_gateway || '192.168.1.1';
+  const passRate = analytics?.total_tests > 0 ? analytics.success_rate_pct : 100.0;
+
+  const seriesData = analytics?.series?.timestamps?.length
+    ? {
+        latency: {
+          timestamps: analytics.series.timestamps,
+          values: analytics.series.latency,
+        },
+        jitter: {
+          timestamps: analytics.series.timestamps,
+          values: analytics.series.jitter,
+        },
+        loss: {
+          timestamps: analytics.series.timestamps,
+          values: analytics.series.loss,
+        },
+      }
+    : undefined;
 
   return (
     <div className="space-y-6">
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          label="Core Edge Gateway"
-          value={backendOnline ? `${gatewayLatencyMs ?? 0.8}` : 'OFFLINE'}
+          label="Backend API Latency"
+          value={backendOnline ? `${gatewayLatencyMs ?? 1}` : 'OFFLINE'}
           unit={backendOnline ? 'ms' : ''}
-          subtext={backendOnline ? '127.0.0.1:8000 nominal' : 'Service unreachable'}
+          subtext={backendOnline ? `Gateway: ${defaultGw}` : 'Service unreachable'}
           icon={Radio}
           status={backendOnline ? 'nominal' : 'critical'}
-          trend={{ direction: 'flat', value: '0.1ms' }}
         />
 
         <KpiCard
-          label="Monitored Nodes"
-          value="4"
-          unit="endpoints"
-          subtext="1 Gateway, 2 Switches, 1 Probe"
+          label="Active Network Nodes"
+          value={`${nodeCount || (networkEnv?.arp_neighbors?.length ? networkEnv.arp_neighbors.length + 1 : 2)}`}
+          unit="discovered"
+          subtext={`Host + Gateway + ARP LAN peers`}
           icon={Server}
           status="neutral"
-          trend={{ direction: 'flat', value: '100% up' }}
         />
 
         <KpiCard
-          label="Platform SLA"
-          value="99.98"
+          label="Probe Pass Rate"
+          value={`${passRate}`}
           unit="%"
-          subtext="Target: 99.90% operational"
+          subtext={
+            analytics?.total_tests > 0
+              ? `Across ${analytics.total_tests} recorded probes`
+              : 'Ready for baseline probes'
+          }
           icon={Activity}
-          status="nominal"
-          trend={{ direction: 'up', value: '0.02%' }}
+          status={passRate >= 95 ? 'nominal' : 'warning'}
         />
 
         <KpiCard
@@ -76,7 +117,7 @@ export const Overview: React.FC<OverviewProps> = ({
       {/* Operations Telemetry Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <PerformanceChart />
+          <PerformanceChart seriesData={seriesData} />
         </div>
         <div className="space-y-6">
           <StatusPanel
@@ -111,11 +152,11 @@ export const Overview: React.FC<OverviewProps> = ({
               Live Network Topology Preview
             </h3>
             <p className="text-[11px] text-[#647C96]">
-              Interactive canvas of core distribution nodes, probe sensors and edge gateways.
+              Dynamic graph constructed from your local default gateway, OS host, and kernel ARP neighbors.
             </p>
           </div>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#111E30] text-[#22D3EE] border border-[#203750]">
-            REACT FLOW CANVAS
+            LIVE TOPOLOGY
           </span>
         </div>
         <TopologyGraph />

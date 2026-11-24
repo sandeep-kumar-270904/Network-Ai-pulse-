@@ -1,74 +1,127 @@
-import React from 'react';
-import { Bot, Clock, Calendar, Info, Plus, Play, Pause } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Clock, Plus, Play, Pause, Trash2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import {
+  fetchAutomationJobs,
+  createAutomationJob,
+  toggleAutomationJob,
+  runAutomationJobNow,
+  deleteAutomationJob,
+} from '../services/api';
 
 export const Automation: React.FC = () => {
-  const schedules = [
-    {
-      id: 'sched-1',
-      name: 'Continuous Gateway Pulse',
-      target: '192.168.1.1',
-      cron: '*/5 * * * *',
-      frequency: 'Every 5 minutes',
-      status: 'Planned',
-      type: 'ICMP Keepalive',
-    },
-    {
-      id: 'sched-2',
-      name: 'Core Switch Path Sweep',
-      target: '192.168.1.2',
-      cron: '0 * * * *',
-      frequency: 'Hourly',
-      status: 'Planned',
-      type: 'Traceroute Path Audit',
-    },
-    {
-      id: 'sched-3',
-      name: 'Off-Peak Bandwidth Assessment',
-      target: '192.168.1.200',
-      cron: '0 2 * * *',
-      frequency: 'Daily at 02:00 UTC',
-      status: 'Planned',
-      type: 'TCP Bandwidth',
-    },
-  ];
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [runningId, setRunningId] = useState<string | null>(null);
+  const [lastRunOutput, setLastRunOutput] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Create form
+  const [name, setName] = useState('');
+  const [target, setTarget] = useState('192.168.1.1');
+  const [testType, setTestType] = useState('icmp_ping');
+  const [intervalSec, setIntervalSec] = useState(60);
+
+  const loadJobs = async () => {
+    setLoading(true);
+    const { jobs: data } = await fetchAutomationJobs();
+    setJobs(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadJobs();
+    const timer = setInterval(loadJobs, 8000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleToggle = async (id: string, current: boolean) => {
+    const ok = await toggleAutomationJob(id, !current);
+    if (ok) {
+      setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, enabled: !current } : j)));
+    }
+  };
+
+  const handleRunNow = async (id: string) => {
+    setRunningId(id);
+    setLastRunOutput(null);
+    const { data, error } = await runAutomationJobNow(id);
+    setRunningId(null);
+    if (data) {
+      setLastRunOutput(`Completed: ${data.summary}`);
+      loadJobs();
+    } else if (error) {
+      setLastRunOutput(`Error: ${error}`);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !target.trim()) return;
+    const { job } = await createAutomationJob(name, target, testType, intervalSec);
+    if (job) {
+      setJobs((prev) => [...prev, job]);
+      setName('');
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const ok = await deleteAutomationJob(id);
+    if (ok) {
+      setJobs((prev) => prev.filter((j) => j.id !== id));
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Orchestration Banner */}
-      <div className="p-4 rounded-xl bg-[#111E30] border border-[#287EFF]/40 flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-[#287EFF]/10 text-[#287EFF] flex-shrink-0">
-          <Info className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Autonomous Test Scheduling & Cron Daemon Orchestration
-            </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#203750] text-[#00D69A] uppercase font-semibold">
-              Orchestrator Ready
-            </span>
+      {/* Operational Banner */}
+      <div className="p-4 rounded-xl bg-[#111E30] border border-[#00D69A]/40 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-[#00D69A]/10 text-[#00D69A] flex-shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
-          <p className="text-xs text-[#91A7C0] mt-1">
-            Automated test scheduling, periodic network regression triggers, and multi-endpoint orchestration routines. Jobs dispatch background socket probes and persist metrics into SQLite at designated cron intervals.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
+                Autonomous Background Test Scheduler
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00D69A]/20 text-[#00D69A] uppercase font-semibold">
+                FASTAPI WORKER ACTIVE
+              </span>
+            </div>
+            <p className="text-xs text-[#91A7C0] mt-1">
+              Enable scheduled probes to automatically execute ICMP or TCP tests in the background on your configured interval and log metrics to SQLite.
+            </p>
+          </div>
         </div>
+
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#287EFF] hover:bg-[#168BFF] text-white text-xs font-mono font-semibold"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>New Schedule</span>
+        </button>
       </div>
 
-      {/* Schedules Table */}
+      {lastRunOutput && (
+        <div className="p-3 rounded-lg bg-[#0D192B] border border-[#22D3EE]/40 text-xs font-mono text-[#22D3EE]">
+          {lastRunOutput}
+        </div>
+      )}
+
+      {/* Jobs Table */}
       <div className="p-5 rounded-xl bg-[#0D192B] border border-[#203750] space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[#203750]">
-          <div className="flex items-center gap-2">
-            <Bot className="w-4 h-4 text-[#22D3EE]" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Scheduled Network Automations
-            </h3>
-          </div>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono flex items-center gap-2">
+            <Bot className="w-4 h-4 text-[#22D3EE]" /> Scheduled Probe Routines ({jobs.length})
+          </h3>
           <button
-            disabled
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#13243A] text-[#647C96] border border-[#203750] text-xs font-mono cursor-not-allowed opacity-60"
+            onClick={loadJobs}
+            className="p-1.5 rounded bg-[#111E30] border border-[#203750] text-[#91A7C0] hover:text-[#EAF3FF]"
+            title="Refresh"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Create Automation (Day 5)</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
@@ -76,27 +129,62 @@ export const Automation: React.FC = () => {
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#111E30] text-[#91A7C0] uppercase text-[10px] tracking-wider border-b border-[#203750]">
               <tr>
-                <th className="py-2.5 px-4">Routine Label</th>
-                <th className="py-2.5 px-4">Test Class</th>
-                <th className="py-2.5 px-4">Target Node</th>
-                <th className="py-2.5 px-4">Cron / Interval</th>
-                <th className="py-2.5 px-4">Milestone Status</th>
+                <th className="py-2.5 px-4">Routine Name</th>
+                <th className="py-2.5 px-4">Target</th>
+                <th className="py-2.5 px-4">Protocol</th>
+                <th className="py-2.5 px-4">Interval</th>
+                <th className="py-2.5 px-4">Runs</th>
+                <th className="py-2.5 px-4">Status</th>
+                <th className="py-2.5 px-4 text-right">Controls</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#203750]/50">
-              {schedules.map((s) => (
-                <tr key={s.id} className="hover:bg-[#13243A]/40 transition-colors">
-                  <td className="py-3 px-4 text-[#EAF3FF] font-medium">{s.name}</td>
-                  <td className="py-3 px-4 text-[#91A7C0]">{s.type}</td>
-                  <td className="py-3 px-4 text-[#22D3EE]">{s.target}</td>
-                  <td className="py-3 px-4 text-[#647C96]">
-                    <span>{s.frequency}</span>{' '}
-                    <span className="text-[10px] text-[#91A7C0]">({s.cron})</span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-[#111E30] text-[#647C96] border border-[#203750]">
-                      {s.status}
+              {jobs.map((job) => (
+                <tr key={job.id} className="hover:bg-[#13243A]/40 transition-colors">
+                  <td className="py-3 px-4 text-[#EAF3FF] font-semibold">{job.name}</td>
+                  <td className="py-3 px-4 text-[#22D3EE]">{job.target}</td>
+                  <td className="py-3 px-4 text-[#91A7C0] uppercase text-[10px]">{job.test_type}</td>
+                  <td className="py-3 px-4 text-[#91A7C0]">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-[#647C96]" /> {job.interval_seconds}s
                     </span>
+                  </td>
+                  <td className="py-3 px-4 text-[#EAF3FF]">{job.run_count}</td>
+                  <td className="py-3 px-4">
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] uppercase border ${
+                        job.enabled
+                          ? 'bg-[#00D69A]/10 text-[#00D69A] border-[#00D69A]/30'
+                          : 'bg-[#647C96]/10 text-[#91A7C0] border-[#203750]'
+                      }`}
+                    >
+                      {job.enabled ? 'ACTIVE' : 'PAUSED'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right space-x-1.5">
+                    <button
+                      onClick={() => handleToggle(job.id, job.enabled)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#111E30] border border-[#203750] text-[#EAF3FF] hover:border-[#22D3EE]/50 text-[10px]"
+                      title={job.enabled ? 'Pause background schedule' : 'Enable background schedule'}
+                    >
+                      {job.enabled ? <Pause className="w-3 h-3 text-[#F5B82E]" /> : <Play className="w-3 h-3 text-[#00D69A]" />}
+                      <span>{job.enabled ? 'Pause' : 'Enable'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleRunNow(job.id)}
+                      disabled={runningId === job.id}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#287EFF]/20 border border-[#287EFF]/40 text-[#22D3EE] hover:bg-[#287EFF]/30 text-[10px]"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${runningId === job.id ? 'animate-spin' : ''}`} />
+                      <span>Run Now</span>
+                    </button>
+                    <button
+                      onClick={() => handleDelete(job.id)}
+                      className="p-1 rounded text-[#647C96] hover:text-[#FF475F]"
+                      title="Delete job"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -104,6 +192,70 @@ export const Automation: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Create Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md p-6 rounded-xl bg-[#0D192B] border border-[#22D3EE]/40 shadow-2xl space-y-4">
+            <h4 className="text-sm font-bold text-[#EAF3FF] font-mono uppercase">Create Scheduled Probe</h4>
+            <form onSubmit={handleCreate} className="space-y-3 text-xs font-mono">
+              <div>
+                <label className="block text-[#91A7C0] mb-1">Job Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Cloudflare Health Check"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-[#111E30] border border-[#203750] text-[#EAF3FF]"
+                />
+              </div>
+              <div>
+                <label className="block text-[#91A7C0] mb-1">Target IP / Host</label>
+                <input
+                  type="text"
+                  required
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-[#111E30] border border-[#203750] text-[#EAF3FF]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#91A7C0] mb-1">Probe Type</label>
+                  <select
+                    value={testType}
+                    onChange={(e) => setTestType(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-[#111E30] border border-[#203750] text-[#EAF3FF]"
+                  >
+                    <option value="icmp_ping">ICMP Ping</option>
+                    <option value="tcp_probe">TCP Port 443</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[#91A7C0] mb-1">Interval (15-3600s)</label>
+                  <input
+                    type="number"
+                    min="15"
+                    max="3600"
+                    value={intervalSec}
+                    onChange={(e) => setIntervalSec(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded bg-[#111E30] border border-[#203750] text-[#EAF3FF]"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-3 py-1.5 rounded bg-[#13243A] text-[#91A7C0]">
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-1.5 rounded bg-[#287EFF] text-white font-semibold">
+                  Create & Enable
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

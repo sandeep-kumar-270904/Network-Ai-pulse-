@@ -1,64 +1,42 @@
-import React, { useState } from 'react';
-import { Search, Plus, Trash2, Server, Router, Radio, CheckCircle, AlertCircle } from 'lucide-react';
-import { Endpoint } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Search, Plus, Trash2, Server, CheckCircle, Activity, RefreshCw } from 'lucide-react';
+import { fetchInventoryNodes, addInventoryNode, deleteInventoryNode, executePingDiagnostic } from '../../services/api';
 
-interface InventoryTableProps {
-  initialEndpoints?: Endpoint[];
+interface InventoryNode {
+  id: string;
+  name: string;
+  ip: string;
+  type: 'gateway' | 'switch' | 'server' | 'probe';
+  status: string;
+  interface: string;
+  mac?: string;
+  source?: string;
 }
 
-const DEFAULT_ENDPOINTS: Endpoint[] = [
-  {
-    id: 'ep-1',
-    name: 'Core Edge Gateway',
-    ip: '192.168.1.1',
-    type: 'gateway',
-    status: 'online',
-    latencyMs: 1.2,
-    interface: 'eth0',
-    lastChecked: 'Just now',
-  },
-  {
-    id: 'ep-2',
-    name: 'Distribution Switch 01',
-    ip: '192.168.1.2',
-    type: 'switch',
-    status: 'online',
-    latencyMs: 0.8,
-    interface: 'eth1',
-    lastChecked: 'Just now',
-  },
-  {
-    id: 'ep-3',
-    name: 'FastAPI REST Core Host',
-    ip: '127.0.0.1:8000',
-    type: 'server',
-    status: 'online',
-    latencyMs: 0.4,
-    interface: 'lo',
-    lastChecked: 'Just now',
-  },
-  {
-    id: 'ep-4',
-    name: 'Lab Test Probe Node',
-    ip: '192.168.1.200',
-    type: 'probe',
-    status: 'online',
-    latencyMs: 2.1,
-    interface: 'wlan0',
-    lastChecked: '1m ago',
-  },
-];
-
-export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints }) => {
-  const [endpoints, setEndpoints] = useState<Endpoint[]>(initialEndpoints || DEFAULT_ENDPOINTS);
+export const InventoryTable: React.FC = () => {
+  const [endpoints, setEndpoints] = useState<InventoryNode[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [pingingId, setPingingId] = useState<string | null>(null);
+  const [pingResults, setPingResults] = useState<Record<string, string>>({});
 
   // Form state
   const [newName, setNewName] = useState('');
   const [newIp, setNewIp] = useState('');
-  const [newType, setNewType] = useState<'gateway' | 'switch' | 'server' | 'probe'>('server');
+  const [newType, setNewType] = useState<'gateway' | 'switch' | 'server' | 'probe'>('probe');
+
+  const loadNodes = async () => {
+    setLoading(true);
+    const { nodes } = await fetchInventoryNodes();
+    if (nodes) setEndpoints(nodes);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadNodes();
+  }, []);
 
   const filtered = endpoints.filter((ep) => {
     const matchesSearch =
@@ -68,29 +46,37 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
     return matchesSearch && matchesType;
   });
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newIp.trim()) return;
-
-    const newEndpoint: Endpoint = {
-      id: `ep-${Date.now()}`,
-      name: newName.trim(),
-      ip: newIp.trim(),
-      type: newType,
-      status: 'online',
-      latencyMs: 1.0,
-      interface: 'eth0',
-      lastChecked: 'Just now',
-    };
-
-    setEndpoints([...endpoints, newEndpoint]);
-    setNewName('');
-    setNewIp('');
-    setIsAddOpen(false);
+    const { node } = await addInventoryNode(newName.trim(), newIp.trim(), newType, 'custom');
+    if (node) {
+      setEndpoints((prev) => [...prev, node]);
+      setNewName('');
+      setNewIp('');
+      setIsAddOpen(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setEndpoints(endpoints.filter((ep) => ep.id !== id));
+  const handleDelete = async (id: string) => {
+    const ok = await deleteInventoryNode(id);
+    if (ok) {
+      setEndpoints((prev) => prev.filter((ep) => ep.id !== id));
+    }
+  };
+
+  const handleQuickPing = async (ep: InventoryNode) => {
+    setPingingId(ep.id);
+    const { data, error } = await executePingDiagnostic(ep.ip, 2, 32, 1500);
+    setPingingId(null);
+    if (data) {
+      setPingResults((prev) => ({
+        ...prev,
+        [ep.id]: data.avg_rtt_ms !== null ? `${data.avg_rtt_ms}ms (${data.packet_loss_pct}% loss)` : 'Timeout',
+      }));
+    } else {
+      setPingResults((prev) => ({ ...prev, [ep.id]: error || 'Failed' }));
+    }
   };
 
   return (
@@ -100,17 +86,17 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
         <div className="flex items-center gap-2">
           <Server className="w-4 h-4 text-[#22D3EE]" />
           <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-            Monitored Endpoints ({filtered.length})
+            Discovered & Monitored Nodes ({filtered.length})
           </h3>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Search bar */}
           <div className="relative">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#647C96]" />
             <input
               type="text"
-              placeholder="Search by IP or hostname..."
+              placeholder="Search by IP or host..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 pr-3 py-1.5 rounded-lg bg-[#111E30] border border-[#203750] text-xs text-[#EAF3FF] placeholder-[#647C96] focus:outline-none focus:border-[#22D3EE] font-mono"
@@ -125,10 +111,18 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
           >
             <option value="all">All Types</option>
             <option value="gateway">Gateways</option>
-            <option value="switch">Switches</option>
-            <option value="server">Servers</option>
-            <option value="probe">Probes</option>
+            <option value="switch">LAN ARP Peers</option>
+            <option value="server">Host Servers</option>
+            <option value="probe">Custom Probes</option>
           </select>
+
+          <button
+            onClick={loadNodes}
+            className="p-1.5 rounded-lg bg-[#111E30] border border-[#203750] text-[#91A7C0] hover:text-[#EAF3FF]"
+            title="Refresh ARP & Gateway Discovery"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
 
           {/* Add endpoint button */}
           <button
@@ -148,9 +142,9 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
             <tr>
               <th className="py-2.5 px-4">Node / Identity</th>
               <th className="py-2.5 px-4">IP Address</th>
-              <th className="py-2.5 px-4">Device Class</th>
-              <th className="py-2.5 px-4">Interface</th>
-              <th className="py-2.5 px-4">Status</th>
+              <th className="py-2.5 px-4">MAC / Source</th>
+              <th className="py-2.5 px-4">Class</th>
+              <th className="py-2.5 px-4">Live Ping Check</th>
               <th className="py-2.5 px-4 text-right">Actions</th>
             </tr>
           </thead>
@@ -162,28 +156,46 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
                   {ep.name}
                 </td>
                 <td className="py-3 px-4 text-[#22D3EE]">{ep.ip}</td>
-                <td className="py-3 px-4 text-[#91A7C0] uppercase text-[11px]">{ep.type}</td>
-                <td className="py-3 px-4 text-[#647C96]">{ep.interface || 'eth0'}</td>
+                <td className="py-3 px-4 text-[#91A7C0]">{ep.mac || ep.interface}</td>
                 <td className="py-3 px-4">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-[#00D69A]/10 text-[#00D69A] border border-[#00D69A]/30">
-                    <CheckCircle className="w-2.5 h-2.5" /> ONLINE
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-[#00D69A]/10 text-[#00D69A] border border-[#00D69A]/30 uppercase">
+                    <CheckCircle className="w-2.5 h-2.5" /> {ep.type}
                   </span>
                 </td>
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-[11px]">
+                  {pingResults[ep.id] ? (
+                    <span className="text-[#00D69A]">{pingResults[ep.id]}</span>
+                  ) : (
+                    <span className="text-[#647C96]">Click Ping to verify</span>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-right space-x-1">
                   <button
-                    onClick={() => handleDelete(ep.id)}
-                    className="p-1 rounded text-[#647C96] hover:text-[#FF475F] hover:bg-[#111E30] transition-colors"
-                    title="Remove Node"
+                    onClick={() => handleQuickPing(ep)}
+                    disabled={pingingId === ep.id}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#111E30] border border-[#203750] text-[#22D3EE] hover:border-[#22D3EE]/50 text-[10px]"
+                    title="Send 2 ICMP probes"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Activity className={`w-3 h-3 ${pingingId === ep.id ? 'animate-spin' : ''}`} />
+                    <span>{pingingId === ep.id ? '...' : 'Ping'}</span>
                   </button>
+
+                  {ep.source === 'custom' && (
+                    <button
+                      onClick={() => handleDelete(ep.id)}
+                      className="p-1 rounded text-[#647C96] hover:text-[#FF475F] hover:bg-[#111E30] transition-colors"
+                      title="Remove Custom Node"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="py-6 text-center text-[#647C96]">
-                  No endpoints matched the specified filter criteria.
+                  {loading ? 'Discovering network nodes...' : 'No endpoints matched the specified filter criteria.'}
                 </td>
               </tr>
             )}
@@ -196,7 +208,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md p-6 rounded-xl bg-[#0D192B] border border-[#22D3EE]/40 shadow-2xl space-y-4">
             <h4 className="text-sm font-bold text-[#EAF3FF] font-mono uppercase tracking-wider">
-              Register Infrastructure Node
+              Register Custom Infrastructure Node
             </h4>
             <form onSubmit={handleAdd} className="space-y-3 text-xs">
               <div>
@@ -204,7 +216,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Core Aggregation Switch"
+                  placeholder="e.g. Cloudflare Public DNS"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-[#111E30] border border-[#203750] text-[#EAF3FF] focus:border-[#22D3EE] focus:outline-none font-mono"
@@ -212,11 +224,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
               </div>
 
               <div>
-                <label className="block text-[#91A7C0] mb-1 font-mono">IP Address / Host</label>
+                <label className="block text-[#91A7C0] mb-1 font-mono">IP Address / Domain</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 192.168.1.50 or host.local"
+                  placeholder="e.g. 1.1.1.1 or google.com"
                   value={newIp}
                   onChange={(e) => setNewIp(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-[#111E30] border border-[#203750] text-[#EAF3FF] focus:border-[#22D3EE] focus:outline-none font-mono"
@@ -230,10 +242,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
                   onChange={(e) => setNewType(e.target.value as any)}
                   className="w-full px-3 py-2 rounded-lg bg-[#111E30] border border-[#203750] text-[#EAF3FF] focus:border-[#22D3EE] focus:outline-none font-mono"
                 >
+                  <option value="probe">Probe Target</option>
+                  <option value="server">Server</option>
                   <option value="gateway">Gateway</option>
                   <option value="switch">Switch</option>
-                  <option value="server">Server</option>
-                  <option value="probe">Probe</option>
                 </select>
               </div>
 
@@ -249,7 +261,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({ initialEndpoints
                   type="submit"
                   className="px-4 py-1.5 rounded-lg bg-[#287EFF] hover:bg-[#168BFF] text-white font-medium"
                 >
-                  Save Node
+                  Save to SQLite
                 </button>
               </div>
             </form>

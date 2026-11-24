@@ -7,6 +7,8 @@ and passive local network environment enumeration.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
 import platform
 import socket
@@ -21,9 +23,29 @@ from pydantic import BaseModel, Field
 
 from core.diagnostics import (
     execute_ping,
+    execute_tcp_probe,
+    execute_traceroute,
     get_default_gateway,
     get_arp_neighbors,
     get_test_history,
+    log_event,
+)
+from core.engines import (
+    acknowledge_event,
+    add_inventory_node,
+    clear_events,
+    create_automation_job,
+    delete_automation_job,
+    delete_inventory_node,
+    execute_performance_benchmark,
+    get_analytics_summary,
+    get_automation_jobs,
+    get_events,
+    get_inventory_nodes,
+    run_ai_anomaly_analysis,
+    run_automation_job_now,
+    tick_automation_scheduler,
+    toggle_automation_job,
 )
 
 # ---------------------------------------------------------------------------
@@ -34,6 +56,35 @@ APP_VERSION = "1.0.0-day1"
 APP_DESCRIPTION = "Intelligent Network Performance Testing & Analysis Platform"
 
 # ---------------------------------------------------------------------------
+# Lifespan Background Scheduler
+# ---------------------------------------------------------------------------
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastAPI):
+    log_event("success", "FastAPI Backend Core", "Uvicorn REST gateway online; SQLite telemetry engine active.")
+    stop_event = asyncio.Event()
+
+    async def _scheduler_loop():
+        while not stop_event.is_set():
+            try:
+                await asyncio.to_thread(tick_automation_scheduler)
+            except Exception as e:
+                print(f"Background scheduler tick error: {e}")
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                pass
+
+    task = asyncio.create_task(_scheduler_loop())
+    try:
+        yield
+    finally:
+        stop_event.set()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
+# ---------------------------------------------------------------------------
 # FastAPI application
 # ---------------------------------------------------------------------------
 app = FastAPI(
@@ -42,6 +93,7 @@ app = FastAPI(
     description=APP_DESCRIPTION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=_lifespan,
 )
 
 # Allow React frontend and API clients to call the REST endpoints.
@@ -227,7 +279,7 @@ def health_check() -> Dict[str, Any]:
         "system": _system_info(),
         "services": {
             "api": "operational",
-            "database": "not_configured",
+            "database": "sqlite_active",
         },
     }
 
@@ -267,38 +319,38 @@ def module_status() -> Dict[str, Any]:
     modules = [
         {
             "name": "Network Diagnostics",
-            "description": "Real ICMP socket ping, RTT latency, packet loss, and jitter analysis.",
+            "description": "Real ICMP socket ping, TCP handshake probe, traceroute, and jitter analysis.",
             "status": "active",
             "icon": "🔍",
         },
         {
             "name": "Performance Testing",
-            "description": "Throughput, latency, and bandwidth measurement tests.",
-            "status": "coming_soon",
+            "description": "Multi-stream TCP socket throughput, jitter burst, and Path MTU discovery.",
+            "status": "active",
             "icon": "⚡",
         },
         {
             "name": "Test Automation",
-            "description": "Scheduled and scripted network test execution.",
-            "status": "planned",
+            "description": "Scheduled background jobs executing periodic network tests.",
+            "status": "active",
             "icon": "🤖",
         },
         {
             "name": "AI Anomaly Detection",
-            "description": "Machine-learning-based detection of unusual network behaviour.",
-            "status": "planned",
+            "description": "Scikit-learn IsolationForest anomaly scoring over recorded telemetry.",
+            "status": "active",
             "icon": "🧠",
         },
         {
             "name": "Performance Analytics",
-            "description": "Historical trend analysis and performance dashboards.",
-            "status": "planned",
+            "description": "Real-time P50/P95/P99 latency percentiles and time-series visualization.",
+            "status": "active",
             "icon": "📊",
         },
         {
             "name": "Report Generation",
-            "description": "Automated PDF and HTML network performance reports.",
-            "status": "planned",
+            "description": "Live CSV and JSON technical telemetry audit export.",
+            "status": "active",
             "icon": "📄",
         },
     ]
@@ -490,3 +542,169 @@ def dynamic_topology() -> Dict[str, Any]:
         "edges": edges,
         "gateway": gw_info,
     }
+
+
+# ---------------------------------------------------------------------------
+# TCP Probe & Traceroute Routes
+# ---------------------------------------------------------------------------
+class TcpProbeRequest(BaseModel):
+    target: str = Field(default="8.8.8.8")
+    port: int = Field(default=443, ge=1, le=65535)
+    count: int = Field(default=4, ge=1, le=10)
+    timeout_ms: int = Field(default=2000, ge=200, le=5000)
+
+
+class TracerouteRequest(BaseModel):
+    target: str = Field(default="8.8.8.8")
+    max_hops: int = Field(default=12, ge=3, le=20)
+
+
+@app.post("/api/diagnostics/tcp-probe", tags=["Diagnostics"])
+def run_tcp_probe(req: TcpProbeRequest) -> Dict[str, Any]:
+    """Execute real Layer 4 TCP handshake probe against target:port."""
+    try:
+        result = execute_tcp_probe(target=req.target, port=req.port, count=req.count, timeout_ms=req.timeout_ms)
+        return {"status": "ok", "timestamp": _utc_now(), "data": result}
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(exc), "timestamp": _utc_now()})
+
+
+@app.post("/api/diagnostics/traceroute", tags=["Diagnostics"])
+def run_traceroute(req: TracerouteRequest) -> Dict[str, Any]:
+    """Execute real Layer 3 traceroute path discovery."""
+    try:
+        result = execute_traceroute(target=req.target, max_hops=req.max_hops)
+        return {"status": "ok", "timestamp": _utc_now(), "data": result}
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(exc), "timestamp": _utc_now()})
+
+
+# ---------------------------------------------------------------------------
+# Performance Benchmarking Route
+# ---------------------------------------------------------------------------
+class BenchmarkRequest(BaseModel):
+    mode: str = Field(default="throughput_tcp")
+    target: str = Field(default="127.0.0.1")
+    duration: int = Field(default=3, ge=1, le=8)
+    streams: int = Field(default=4, ge=1, le=8)
+
+
+@app.post("/api/performance/benchmark", tags=["Performance"])
+def run_benchmark(req: BenchmarkRequest) -> Dict[str, Any]:
+    """Execute real socket throughput, jitter burst, or Path MTU discovery benchmark."""
+    try:
+        result = execute_performance_benchmark(mode=req.mode, target=req.target, duration=req.duration, streams=req.streams)
+        return {"status": "ok", "timestamp": _utc_now(), "data": result}
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(exc), "timestamp": _utc_now()})
+
+
+# ---------------------------------------------------------------------------
+# Test Automation Scheduler Routes
+# ---------------------------------------------------------------------------
+class AutomationJobCreate(BaseModel):
+    name: str
+    target: str
+    test_type: str = Field(default="icmp_ping")
+    interval_seconds: int = Field(default=60, ge=15, le=86400)
+
+
+class AutomationJobToggle(BaseModel):
+    enabled: bool
+
+
+@app.get("/api/automation/jobs", tags=["Automation"])
+def list_automation_jobs() -> Dict[str, Any]:
+    return {"status": "ok", "timestamp": _utc_now(), "jobs": get_automation_jobs()}
+
+
+@app.post("/api/automation/jobs", tags=["Automation"])
+def add_automation_job(req: AutomationJobCreate) -> Dict[str, Any]:
+    try:
+        job = create_automation_job(req.name, req.target, req.test_type, req.interval_seconds)
+        return {"status": "ok", "timestamp": _utc_now(), "job": job}
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(exc), "timestamp": _utc_now()})
+
+
+@app.patch("/api/automation/jobs/{job_id}", tags=["Automation"])
+def set_automation_job_state(job_id: str, req: AutomationJobToggle) -> Dict[str, Any]:
+    ok = toggle_automation_job(job_id, req.enabled)
+    return {"status": "ok" if ok else "not_found", "timestamp": _utc_now(), "enabled": req.enabled}
+
+
+@app.post("/api/automation/jobs/{job_id}/run", tags=["Automation"])
+def trigger_automation_job(job_id: str) -> Dict[str, Any]:
+    res = run_automation_job_now(job_id)
+    if res is None:
+        return JSONResponse(status_code=404, content={"status": "error", "message": "Job not found", "timestamp": _utc_now()})
+    return {"status": "ok", "timestamp": _utc_now(), "data": res}
+
+
+@app.delete("/api/automation/jobs/{job_id}", tags=["Automation"])
+def remove_automation_job(job_id: str) -> Dict[str, Any]:
+    ok = delete_automation_job(job_id)
+    return {"status": "ok" if ok else "not_found", "timestamp": _utc_now()}
+
+
+# ---------------------------------------------------------------------------
+# Alerts & Events Routes
+# ---------------------------------------------------------------------------
+@app.get("/api/alerts", tags=["Alerts"])
+def list_alerts(limit: int = 100) -> Dict[str, Any]:
+    return {"status": "ok", "timestamp": _utc_now(), "events": get_events(limit=limit)}
+
+
+@app.post("/api/alerts/{event_id}/acknowledge", tags=["Alerts"])
+def ack_alert(event_id: str) -> Dict[str, Any]:
+    ok = acknowledge_event(event_id)
+    return {"status": "ok" if ok else "not_found", "timestamp": _utc_now()}
+
+
+@app.delete("/api/alerts", tags=["Alerts"])
+def purge_alerts() -> Dict[str, Any]:
+    clear_events()
+    return {"status": "ok", "timestamp": _utc_now()}
+
+
+# ---------------------------------------------------------------------------
+# Analytics & AI Anomaly Detection Routes
+# ---------------------------------------------------------------------------
+@app.get("/api/analytics", tags=["Analytics"])
+def analytics_summary(limit: int = 100) -> Dict[str, Any]:
+    return {"status": "ok", "timestamp": _utc_now(), "analytics": get_analytics_summary(limit=limit)}
+
+
+@app.post("/api/ai/analyze", tags=["AI Analysis"])
+def ai_anomaly_scan() -> Dict[str, Any]:
+    return {"status": "ok", "timestamp": _utc_now(), "analysis": run_ai_anomaly_analysis()}
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Inventory Routes
+# ---------------------------------------------------------------------------
+class InventoryNodeCreate(BaseModel):
+    name: str
+    ip: str
+    node_type: str = Field(default="probe")
+    interface: str = Field(default="eth0")
+
+
+@app.get("/api/inventory", tags=["Inventory"])
+def list_inventory() -> Dict[str, Any]:
+    return {"status": "ok", "timestamp": _utc_now(), "nodes": get_inventory_nodes()}
+
+
+@app.post("/api/inventory", tags=["Inventory"])
+def create_inventory_node(req: InventoryNodeCreate) -> Dict[str, Any]:
+    try:
+        node = add_inventory_node(req.name, req.ip, req.node_type, req.interface)
+        return {"status": "ok", "timestamp": _utc_now(), "node": node}
+    except Exception as exc:
+        return JSONResponse(status_code=400, content={"status": "error", "message": str(exc), "timestamp": _utc_now()})
+
+
+@app.delete("/api/inventory/{node_id}", tags=["Inventory"])
+def remove_inventory_node(node_id: str) -> Dict[str, Any]:
+    ok = delete_inventory_node(node_id)
+    return {"status": "ok" if ok else "not_found", "timestamp": _utc_now()}
