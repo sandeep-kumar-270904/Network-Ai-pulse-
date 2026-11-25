@@ -442,13 +442,13 @@ const AppLayout: React.FC = () => {
             <Route path="/diagnostics" element={<Diagnostics />} />
             <Route path="/topology" element={<Topology theme={theme} timeRange={timeRange} />} />
             <Route path="/inventory" element={<Inventory networkEnv={networkEnvData} />} />
-            <Route path="/performance" element={<Performance />} />
+            <Route path="/performance" element={<Performance theme={theme} />} />
             <Route path="/automation" element={<Automation />} />
             <Route path="/ai-analysis" element={<AIAnalysis theme={theme} />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/history" element={<TestHistory />} />
             <Route path="/analytics" element={<Analytics timeRange={timeRange} theme={theme} />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<Reports timeRange={timeRange} />} />
             <Route
               path="/system"
               element={

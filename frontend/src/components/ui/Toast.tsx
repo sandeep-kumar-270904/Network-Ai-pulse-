@@ -123,7 +123,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       <div
         aria-live="polite"
         aria-atomic="false"
-        className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 items-end pointer-events-none"
+        className="fixed top-20 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 items-end pointer-events-none"
       >
         {toasts.map((item) => (
           <div key={item.id} className="pointer-events-auto w-full sm:w-auto">

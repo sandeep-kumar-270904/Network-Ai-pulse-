@@ -132,16 +132,20 @@ export const executePingDiagnostic = async (
   count: number = 4,
   packetSize: number = 32,
   timeoutMs: number = 2000,
-): Promise<{ data: PingResultPayload | null; error: string | null }> => {
+  signal?: AbortSignal,
+): Promise<{ data: PingResultPayload | null; error: string | null; cancelled?: boolean }> => {
   try {
     const res = await apiClient.post('/api/diagnostics/ping', {
       target,
       count,
       packet_size: packetSize,
       timeout_ms: timeoutMs,
-    }, { timeout: 25000 });
+    }, { timeout: 25000, signal });
     return { data: res.data?.data || null, error: null };
   } catch (err: unknown) {
+    if (axios.isCancel(err) || (err instanceof Error && err.name === 'CanceledError')) {
+      return { data: null, error: 'Cancelled by operator', cancelled: true };
+    }
     return { data: null, error: extractAxiosError(err, 'ICMP diagnostic execution failed') };
   }
 };
@@ -151,16 +155,20 @@ export const executeTcpProbeDiagnostic = async (
   port: number = 443,
   count: number = 4,
   timeoutMs: number = 2000,
-): Promise<{ data: PingResultPayload | null; error: string | null }> => {
+  signal?: AbortSignal,
+): Promise<{ data: PingResultPayload | null; error: string | null; cancelled?: boolean }> => {
   try {
     const res = await apiClient.post('/api/diagnostics/tcp-probe', {
       target,
       port,
       count,
       timeout_ms: timeoutMs,
-    }, { timeout: 25000 });
+    }, { timeout: 25000, signal });
     return { data: res.data?.data || null, error: null };
   } catch (err: unknown) {
+    if (axios.isCancel(err) || (err instanceof Error && err.name === 'CanceledError')) {
+      return { data: null, error: 'Cancelled by operator', cancelled: true };
+    }
     return { data: null, error: extractAxiosError(err, 'TCP handshake probe failed') };
   }
 };
@@ -168,14 +176,18 @@ export const executeTcpProbeDiagnostic = async (
 export const executeTracerouteDiagnostic = async (
   target: string,
   maxHops: number = 12,
-): Promise<{ data: any | null; error: string | null }> => {
+  signal?: AbortSignal,
+): Promise<{ data: any | null; error: string | null; cancelled?: boolean }> => {
   try {
     const res = await apiClient.post('/api/diagnostics/traceroute', {
       target,
       max_hops: maxHops,
-    }, { timeout: 35000 });
+    }, { timeout: 35000, signal });
     return { data: res.data?.data || null, error: null };
   } catch (err: unknown) {
+    if (axios.isCancel(err) || (err instanceof Error && err.name === 'CanceledError')) {
+      return { data: null, error: 'Cancelled by operator', cancelled: true };
+    }
     return { data: null, error: extractAxiosError(err, 'Traceroute execution failed') };
   }
 };
@@ -209,16 +221,20 @@ export const executePerformanceBenchmark = async (
   target: string,
   duration: number,
   streams: number,
-): Promise<{ data: any | null; error: string | null }> => {
+  signal?: AbortSignal,
+): Promise<{ data: any | null; error: string | null; cancelled?: boolean }> => {
   try {
     const res = await apiClient.post('/api/performance/benchmark', {
       mode,
       target,
       duration,
       streams,
-    }, { timeout: 30000 });
+    }, { timeout: 30000, signal });
     return { data: res.data?.data || null, error: null };
   } catch (err: unknown) {
+    if (axios.isCancel(err) || (err instanceof Error && err.name === 'CanceledError')) {
+      return { data: null, error: 'Cancelled by operator', cancelled: true };
+    }
     return { data: null, error: extractAxiosError(err, 'Benchmark failed') };
   }
 };

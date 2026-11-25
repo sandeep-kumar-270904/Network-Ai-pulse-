@@ -67,7 +67,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
               className="h-10 px-4 rounded-[var(--radius-control)] inline-flex items-center gap-2 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 transition-colors"
             >
               <RotateCcw className="w-4 h-4" aria-hidden="true" />
-              <span>Reset</span>
+              <span>Discard</span>
             </button>
 
             <button

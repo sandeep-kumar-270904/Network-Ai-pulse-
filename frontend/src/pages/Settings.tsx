@@ -5,11 +5,11 @@ import {
   Shield,
   Loader2,
   ExternalLink,
-  Lock,
   Info,
   RotateCcw,
   CheckCircle2,
   AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { SettingsCard } from '../components/ui/SettingsCard';
 import { Field } from '../components/ui/Field';
@@ -20,9 +20,9 @@ import { StatusChip, StatusTone } from '../components/ui/StatusChip';
 import { ActionBar } from '../components/ui/ActionBar';
 import { Dialog } from '../components/ui/Dialog';
 import { Tooltip } from '../components/ui/Tooltip';
-import { SettingsSkeleton } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
 import { DEFAULT_API_URL, testGatewayConnection } from '../services/api';
+import { formatRelativeTime, formatTimestampUtc } from '../utils/formatters';
 
 export interface PlatformConfig {
   gatewayUrl: string;
@@ -52,7 +52,8 @@ const loadSavedConfig = (): PlatformConfig => {
   try {
     const url = window.localStorage.getItem(STORAGE_KEYS.url) || DEFAULT_CONFIG.gatewayUrl;
     const rawPoll = Number(window.localStorage.getItem(STORAGE_KEYS.polling));
-    const pollingIntervalSec = rawPoll >= 2 && rawPoll <= 30 ? rawPoll : DEFAULT_CONFIG.pollingIntervalSec;
+    const pollingIntervalSec =
+      rawPoll >= 2 && rawPoll <= 30 ? rawPoll : DEFAULT_CONFIG.pollingIntervalSec;
     const passiveEnumeration = window.localStorage.getItem(STORAGE_KEYS.passive) !== 'false';
     const manualTargetSelection = window.localStorage.getItem(STORAGE_KEYS.manual) !== 'false';
     return {
@@ -66,10 +67,16 @@ const loadSavedConfig = (): PlatformConfig => {
   }
 };
 
-const validateGatewayUrl = (raw: string): { error: string | null; warning: string | null; normalized: string } => {
+const validateGatewayUrl = (
+  raw: string
+): { error: string | null; warning: string | null; normalized: string } => {
   const trimmed = raw.trim().replace(/\/+$/, '');
   if (!trimmed) {
-    return { error: 'API server URL is required. Enter a valid HTTP or HTTPS address.', warning: null, normalized: trimmed };
+    return {
+      error: 'API server URL is required. Enter a valid HTTP or HTTPS address.',
+      warning: null,
+      normalized: trimmed,
+    };
   }
   try {
     const parsed = new URL(trimmed);
@@ -146,31 +153,32 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   });
 
-  const [lastSavedTime, setLastSavedTime] = useState<string>(() => {
+  const [lastSavedIso, setLastSavedIso] = useState<string | null>(() => {
     try {
-      return window.localStorage.getItem(STORAGE_KEYS.savedAt) || 'Not saved yet';
+      const raw = window.localStorage.getItem(STORAGE_KEYS.savedAt);
+      if (!raw || raw === 'Not saved yet') return null;
+      return raw;
     } catch {
-      return 'Not saved yet';
+      return null;
     }
   });
 
-  // UI & Validation States
   const [activeSection, setActiveSection] = useState<SectionKey>('gateway');
   const [connTestState, setConnTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [connTestLatencyMs, setConnTestLatencyMs] = useState<number | null>(null);
+  const [connTestVersion, setConnTestVersion] = useState<string | null>(null);
   const [connTestMessage, setConnTestMessage] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveErrorMsg, setSaveErrorMsg] = useState<string | null>(null);
 
-  // Safety Confirmation Dialog State
-  const [pendingDisablePolicy, setPendingDisablePolicy] = useState<'passiveEnumeration' | 'manualTargetSelection' | null>(null);
+  const [pendingDisablePolicy, setPendingDisablePolicy] = useState<
+    'passiveEnumeration' | 'manualTargetSelection' | null
+  >(null);
   const [auditNotes, setAuditNotes] = useState<Record<string, string>>({});
-  const [learnMorePolicy, setLearnMorePolicy] = useState<'passiveEnumeration' | 'manualTargetSelection' | null>(null);
+  const [learnMorePolicy, setLearnMorePolicy] = useState<
+    'passiveEnumeration' | 'manualTargetSelection' | null
+  >(null);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-
-  // Preview / Edge-state switches (read-only permission-denied, loading skeleton, simulate save failure)
-  const [readOnlyMode, setReadOnlyMode] = useState(false);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [simulateSaveFail, setSimulateSaveFail] = useState(false);
 
   const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
     gateway: null,
@@ -178,7 +186,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     safety: null,
   });
 
-  // Persist draft safely
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEYS.draft, JSON.stringify(form));
@@ -187,7 +194,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
   }, [form]);
 
-  // Dirty tracking
   const dirtyFields = useMemo(() => {
     let count = 0;
     if (form.gatewayUrl.trim().replace(/\/+$/, '') !== savedConfig.gatewayUrl) count += 1;
@@ -202,7 +208,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const hasValidationError = Boolean(urlValidation.error);
   const urlChangedFromSaved = urlValidation.normalized !== savedConfig.gatewayUrl;
 
-  // Warn before browser unload if dirty
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -214,7 +219,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [isDirty]);
 
-  // Scroll-spy for local section nav
   useEffect(() => {
     const handleScroll = () => {
       const keys: SectionKey[] = ['gateway', 'telemetry', 'safety'];
@@ -234,14 +238,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const scrollToSection = (key: SectionKey) => {
     setActiveSection(key);
-    const el = sectionRefs.current[key];
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    sectionRefs.current[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Test Connection
   const handleTestConnection = useCallback(async () => {
     if (urlValidation.error) {
       setConnTestState('error');
+      setConnTestLatencyMs(null);
+      setConnTestVersion(null);
       setConnTestMessage(urlValidation.error);
       return;
     }
@@ -249,32 +253,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const clean = urlValidation.normalized;
     setForm((prev) => ({ ...prev, gatewayUrl: clean }));
     setConnTestState('testing');
+    setConnTestLatencyMs(null);
+    setConnTestVersion(null);
     setConnTestMessage(null);
 
     const res = await testGatewayConnection(clean);
     if (res.ok) {
       setConnTestState('success');
-      setConnTestMessage(`Connected · ${res.latencyMs} ms · ${res.version}`);
+      setConnTestLatencyMs(res.latencyMs);
+      setConnTestVersion(res.version || null);
+      setConnTestMessage(`Connected in ${res.latencyMs} ms (${res.version || 'API ready'}).`);
       addToast({
         tone: 'ok',
         title: 'Gateway reachable',
-        description: `Responded in ${res.latencyMs} ms (${res.version}).`,
+        description: `Responded in ${res.latencyMs} ms.`,
       });
     } else {
       setConnTestState('error');
-      setConnTestMessage("Can't reach server. Check the address and that the service is running.");
+      setConnTestLatencyMs(res.latencyMs);
+      setConnTestVersion(null);
+      setConnTestMessage(
+        res.error || "Can't reach server. Verify the URL and ensure FastAPI is running."
+      );
       addToast({
         tone: 'danger',
         title: 'Connection test failed',
-        description: "Can't reach server. Check the address and that the service is running.",
+        description: res.error || "Can't reach server.",
         action: { label: 'Retry', onClick: handleTestConnection },
       });
     }
   }, [urlValidation, addToast]);
 
-  // Save handler
   const handleSave = useCallback(async () => {
-    if (readOnlyMode || hasValidationError || !isDirty) return;
+    if (hasValidationError || !isDirty) return;
 
     const normalizedConfig: PlatformConfig = {
       ...form,
@@ -283,86 +294,64 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
     setSaveState('saving');
     setSaveErrorMsg(null);
-
-    // Realistic transition delay so spinner & locked button width behave smoothly
-    await new Promise((r) => setTimeout(r, 320));
-
-    if (simulateSaveFail) {
-      setSaveState('error');
-      setSaveErrorMsg('Gateway rejected configuration update (simulated 503).');
-      addToast({
-        tone: 'danger',
-        title: 'Failed to save settings',
-        description: 'Gateway rejected configuration update. Check connectivity and retry.',
-        action: { label: 'Retry', onClick: handleSave },
-      });
-      return;
-    }
+    await new Promise((r) => setTimeout(r, 220));
 
     try {
       const nextRev = configVersion + 1;
-      const nowLabel = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const nowIso = new Date().toISOString();
 
       window.localStorage.setItem(STORAGE_KEYS.url, normalizedConfig.gatewayUrl);
       window.localStorage.setItem(STORAGE_KEYS.polling, String(normalizedConfig.pollingIntervalSec));
       window.localStorage.setItem(STORAGE_KEYS.passive, String(normalizedConfig.passiveEnumeration));
       window.localStorage.setItem(STORAGE_KEYS.manual, String(normalizedConfig.manualTargetSelection));
-      window.localStorage.setItem(STORAGE_KEYS.savedAt, nowLabel);
+      window.localStorage.setItem(STORAGE_KEYS.savedAt, nowIso);
       window.localStorage.setItem(STORAGE_KEYS.version, String(nextRev));
       window.localStorage.removeItem(STORAGE_KEYS.draft);
 
       setSavedConfig(normalizedConfig);
       setForm(normalizedConfig);
       setConfigVersion(nextRev);
-      setLastSavedTime(nowLabel);
+      setLastSavedIso(nowIso);
       setSaveState('saved');
       onConfigSaved?.(normalizedConfig);
 
       addToast({
         tone: 'ok',
-        title: `Settings saved · applied to gateway (v${nextRev})`,
+        title: `Settings applied (revision v${nextRev})`,
         description: `Polling every ${normalizedConfig.pollingIntervalSec}s at ${normalizedConfig.gatewayUrl}.`,
       });
 
       window.setTimeout(() => {
         setSaveState('idle');
-      }, 1500);
+      }, 1400);
     } catch {
       setSaveState('error');
       setSaveErrorMsg('Unable to persist settings in browser storage.');
     }
-  }, [
-    readOnlyMode,
-    hasValidationError,
-    isDirty,
-    form,
-    urlValidation.normalized,
-    simulateSaveFail,
-    configVersion,
-    onConfigSaved,
-    addToast,
-  ]);
+  }, [hasValidationError, isDirty, form, urlValidation.normalized, configVersion, onConfigSaved, addToast]);
 
-  // Keyboard shortcut Cmd/Ctrl+S
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (isDirty && !hasValidationError && !readOnlyMode) {
+        if (isDirty && !hasValidationError) {
           handleSave();
         }
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDirty, hasValidationError, readOnlyMode, handleSave]);
+  }, [isDirty, hasValidationError, handleSave]);
 
-  const handleReset = () => {
+  const handleDiscard = () => {
     setForm(savedConfig);
     setSaveState('idle');
     setSaveErrorMsg(null);
     setConnTestState('idle');
+    setConnTestLatencyMs(null);
+    setConnTestVersion(null);
     setConnTestMessage(null);
+    addToast({ tone: 'info', title: 'Unsaved changes discarded' });
   };
 
   const handleResetToDefaults = () => {
@@ -370,14 +359,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setResetConfirmOpen(false);
     addToast({
       tone: 'info',
-      title: 'Default values staged',
-      description: 'Review the defaults and click Save changes to apply.',
+      title: 'Factory defaults staged',
+      description: 'Review staged settings and click Save changes to apply, or Discard to cancel.',
     });
   };
 
-  // Safety policy switch handler (requires confirmation when turning OFF)
-  const handlePolicyToggle = (key: 'passiveEnumeration' | 'manualTargetSelection', nextVal: boolean) => {
-    if (readOnlyMode) return;
+  const handlePolicyToggle = (
+    key: 'passiveEnumeration' | 'manualTargetSelection',
+    nextVal: boolean
+  ) => {
     if (!nextVal) {
       setPendingDisablePolicy(key);
     } else {
@@ -393,21 +383,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const confirmDisablePolicy = () => {
     if (!pendingDisablePolicy) return;
     const key = pendingDisablePolicy;
-    const stamp = new Date().toISOString().substring(11, 19) + ' UTC';
+    const stamp = formatTimestampUtc(new Date());
     setForm((prev) => ({ ...prev, [key]: false }));
     setAuditNotes((prev) => ({
       ...prev,
-      [key]: `Audit note: Policy disabled by operator at ${stamp}`,
+      [key]: `Override logged at ${stamp} (pending Save)`,
     }));
     addToast({
       tone: 'warn',
-      title: 'Safety policy disabled',
-      description: 'This override is logged for operational review. Save changes to apply.',
+      title: 'Safety guardrail staged as disabled',
+      description: 'Save changes to apply this override.',
     });
     setPendingDisablePolicy(null);
   };
 
-  // Dynamic Safety Summary
   const activePoliciesCount =
     (form.passiveEnumeration ? 1 : 0) + (form.manualTargetSelection ? 1 : 0);
   const safetyChip: { tone: StatusTone; label: string } =
@@ -419,23 +408,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
   const requestsPerMin = Math.round(60 / form.pollingIntervalSec);
 
-  const triggerLoadingPreview = () => {
-    setIsLoadingPreview(true);
-    window.setTimeout(() => setIsLoadingPreview(false), 1200);
-  };
+  const formattedLastSaved = useMemo(() => {
+    if (!lastSavedIso) return 'Default baseline (not yet modified)';
+    const utc = formatTimestampUtc(lastSavedIso);
+    if (utc === 'No data') return lastSavedIso;
+    const rel = formatRelativeTime(lastSavedIso);
+    return `${utc} (${rel})`;
+  }, [lastSavedIso]);
 
   return (
     <div className="w-full pb-28">
-      {/* Page Title & Local Anchor Navigation */}
+      {/* Header & Local Section Anchor Navigation */}
       <div className="mb-6 space-y-4">
         <div className="space-y-1">
           <h1 className="np-page-title">Platform settings</h1>
           <p className="np-helper">
-            Configure the API server connection, background telemetry polling cadence, and active probing guardrails.
+            Configure gateway connectivity, background telemetry cadence, and operational probing safety guardrails.
           </p>
         </div>
 
-        {/* Local Section Anchor Nav */}
         <nav aria-label="Settings sections" className="flex items-center gap-1 border-b border-[var(--border)]">
           {(
             [
@@ -463,247 +454,244 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </nav>
       </div>
 
-      {/* Permission-Denied / Read-Only Mode Banner */}
-      {readOnlyMode && (
-        <div
-          role="status"
-          className="mb-6 p-4 rounded-[var(--radius-card)] bg-[var(--warn-soft)] border border-[var(--warn)]/35 flex items-center justify-between gap-3"
-        >
-          <div className="flex items-start gap-3">
-            <Lock className="w-4 h-4 text-[var(--warn)] shrink-0 mt-0.5" aria-hidden="true" />
-            <div>
-              <p className="text-[14px] font-semibold text-[var(--text)]">
-                Read-only mode active
-              </p>
-              <p className="text-[13px] text-[var(--text-secondary)]">
-                You do not have write permissions to modify platform configuration. Controls are locked.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setReadOnlyMode(false)}
-            className="h-9 px-3 rounded-[var(--radius-control)] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] text-[13px] font-medium text-[var(--text)] hover:bg-[var(--bg-hover)] shrink-0"
-          >
-            Unlock
-          </button>
-        </div>
-      )}
-
-      {/* Two-Column Content Grid (>=1280px: Form + 320px Sticky Rail) */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
-        {/* Main Settings Form */}
+      {/* Responsive Two-Column Grid with minmax(0,1fr) so Side Card NEVER Overflows/Clips */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+        {/* Left: Main Settings Form */}
         <div className="space-y-6 min-w-0">
-          {isLoadingPreview ? (
-            <SettingsSkeleton />
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSave();
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+            noValidate
+            className="space-y-6"
+          >
+            {/* 1. Gateway Section */}
+            <div
+              ref={(el) => {
+                sectionRefs.current.gateway = el;
               }}
-              noValidate
-              className="space-y-6"
             >
-              {/* 1. Gateway Section */}
-              <div
-                ref={(el) => {
-                  sectionRefs.current.gateway = el;
-                }}
-              >
-                <SettingsCard
-                  id="gateway"
-                  icon={Globe}
-                  title="Gateway"
-                  description="Address where the control-plane API listens for health and diagnostic commands."
-                  statusSlot={
-                    <Tooltip content="Runs locally over FastAPI & Uvicorn">
-                      <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)] cursor-help">
-                        <Info className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Advanced</span>
-                      </span>
-                    </Tooltip>
-                  }
-                >
-                  <Field
-                    id="api-server-url"
-                    label="API server URL"
-                    helper={`The address of your NetPulse backend. Default: ${DEFAULT_API_URL}`}
-                    error={urlValidation.error || (connTestState === 'error' ? connTestMessage : null)}
-                    warning={urlValidation.warning}
-                    success={connTestState === 'success' ? connTestMessage : null}
-                  >
-                    <TextInput
-                      id="api-server-url"
-                      type="url"
-                      mono
-                      disabled={readOnlyMode}
-                      value={form.gatewayUrl}
-                      invalid={Boolean(urlValidation.error) || connTestState === 'error'}
-                      describedBy="api-server-url-helper api-server-url-feedback"
-                      placeholder={DEFAULT_API_URL}
-                      onChange={(e) => {
-                        setForm((prev) => ({ ...prev, gatewayUrl: e.target.value }));
-                        if (connTestState !== 'idle') {
-                          setConnTestState('idle');
-                          setConnTestMessage(null);
-                        }
-                      }}
-                      onBlur={() => {
-                        const clean = form.gatewayUrl.trim().replace(/\/+$/, '');
-                        if (clean !== form.gatewayUrl) {
-                          setForm((prev) => ({ ...prev, gatewayUrl: clean }));
-                        }
-                      }}
-                      leftIcon={<Globe className="w-4 h-4" />}
-                      rightAction={
-                        <button
-                          type="button"
-                          onClick={handleTestConnection}
-                          disabled={readOnlyMode || connTestState === 'testing' || Boolean(urlValidation.error)}
-                          className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
-                        >
-                          {connTestState === 'testing' ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" aria-hidden="true" />
-                              <span>Testing…</span>
-                            </>
-                          ) : connTestState === 'error' ? (
-                            <span>Retry</span>
-                          ) : (
-                            <>
-                              <span className="hidden sm:inline">Test connection</span>
-                              <span className="sm:hidden">Test</span>
-                            </>
-                          )}
-                        </button>
-                      }
-                    />
-                  </Field>
-
-                  {urlChangedFromSaved && !urlValidation.error && (
-                    <p className="flex items-center gap-2 text-[13px] text-[var(--warn)]">
-                      <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
-                      <span>Changing this reconnects all live views</span>
-                    </p>
-                  )}
-                </SettingsCard>
-              </div>
-
-              {/* 2. Telemetry Section */}
-              <div
-                ref={(el) => {
-                  sectionRefs.current.telemetry = el;
-                }}
-              >
-                <SettingsCard
-                  id="telemetry"
-                  icon={Activity}
-                  title="Telemetry"
-                  description="Frequency at which the dashboard polls the gateway for health and host metrics."
-                  statusSlot={
-                    <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-[var(--accent-soft)] border border-[var(--accent)]/35 text-[var(--accent)] np-mono-val text-[12px]">
-                      {form.pollingIntervalSec} s
+              <SettingsCard
+                id="gateway"
+                icon={Globe}
+                title="Gateway"
+                description="Control-plane API server used by all dashboard telemetry and diagnostic operations."
+                statusSlot={
+                  <Tooltip content="Runs locally over FastAPI & Uvicorn">
+                    <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)] cursor-help">
+                      <Info className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>FastAPI host</span>
                     </span>
-                  }
+                  </Tooltip>
+                }
+              >
+                <Field
+                  id="api-server-url"
+                  label="API server URL"
+                  helper={`Default: ${DEFAULT_API_URL}. Consequence: changing this immediately switches where all live probes, alerts, and history queries execute.`}
+                  error={urlValidation.error}
+                  warning={urlValidation.warning}
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="np-field-label">Polling interval</span>
-                      <span className="text-[12px] font-mono text-[var(--text-muted)]">
-                        ~{requestsPerMin} requests/min to the gateway
-                      </span>
-                    </div>
-
-                    <Slider
-                      value={form.pollingIntervalSec}
-                      min={2}
-                      max={30}
-                      step={1}
-                      ticks={POLL_TICKS}
-                      minLabel="Faster · more load"
-                      maxLabel="Slower · less load"
-                      unit="s"
-                      ariaLabel="Polling interval"
-                      disabled={readOnlyMode}
-                      onChange={(val) =>
-                        setForm((prev) => ({ ...prev, pollingIntervalSec: val }))
+                  <TextInput
+                    id="api-server-url"
+                    type="url"
+                    mono
+                    value={form.gatewayUrl}
+                    invalid={Boolean(urlValidation.error) || connTestState === 'error'}
+                    describedBy="api-server-url-helper api-server-url-feedback"
+                    placeholder={DEFAULT_API_URL}
+                    onChange={(e) => {
+                      setForm((prev) => ({ ...prev, gatewayUrl: e.target.value }));
+                      if (connTestState !== 'idle') {
+                        setConnTestState('idle');
+                        setConnTestLatencyMs(null);
+                        setConnTestVersion(null);
+                        setConnTestMessage(null);
                       }
-                    />
+                    }}
+                    onBlur={() => {
+                      const clean = form.gatewayUrl.trim().replace(/\/+$/, '');
+                      if (clean !== form.gatewayUrl) {
+                        setForm((prev) => ({ ...prev, gatewayUrl: clean }));
+                      }
+                    }}
+                    leftIcon={<Globe className="w-4 h-4" />}
+                    rightAction={
+                      <button
+                        type="button"
+                        onClick={handleTestConnection}
+                        disabled={connTestState === 'testing' || Boolean(urlValidation.error)}
+                        className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
+                      >
+                        {connTestState === 'testing' ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" aria-hidden="true" />
+                            <span>Testing…</span>
+                          </>
+                        ) : (
+                          <span>Test connection</span>
+                        )}
+                      </button>
+                    }
+                  />
+                </Field>
 
-                    {form.pollingIntervalSec < 3 && (
-                      <p className="flex items-start gap-1.5 text-[13px] leading-5 text-[var(--warn)]">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-                        <span>High frequency may increase CPU use on the backend.</span>
-                      </p>
+                {/* Inline Connection Test Result with Measured Latency */}
+                {connTestState !== 'idle' && (
+                  <div
+                    role="status"
+                    className={`p-3 rounded-[var(--radius-control)] border flex flex-wrap items-center justify-between gap-2 text-[12px] ${
+                      connTestState === 'success'
+                        ? 'bg-[var(--ok-soft)] border-[var(--ok)]/35 text-[var(--ok)]'
+                        : connTestState === 'error'
+                        ? 'bg-[var(--danger-soft)] border-[var(--danger)]/35 text-[var(--danger)]'
+                        : 'bg-[var(--surface-2)] border-[var(--border)] text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-2 font-medium">
+                      {connTestState === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      ) : connTestState === 'error' ? (
+                        <XCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      ) : (
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
+                      )}
+                      <span>
+                        {connTestState === 'testing'
+                          ? `Probing ${urlValidation.normalized}/health…`
+                          : connTestMessage}
+                      </span>
+                    </span>
+
+                    {connTestLatencyMs !== null && (
+                      <span className="font-mono font-semibold px-2 py-0.5 rounded-[var(--radius-pill)] bg-[var(--surface-1)] border border-[var(--border)] text-[var(--text)] np-mono-val">
+                        {connTestLatencyMs} ms{connTestVersion ? ` · ${connTestVersion}` : ''}
+                      </span>
                     )}
                   </div>
-                </SettingsCard>
-              </div>
+                )}
 
-              {/* 3. Safety Section */}
-              <div
-                ref={(el) => {
-                  sectionRefs.current.safety = el;
-                }}
+                {urlChangedFromSaved && !urlValidation.error && (
+                  <p className="flex items-center gap-2 text-[13px] text-[var(--warn)]">
+                    <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    <span>Saving this new URL reconnects all live telemetry pollers immediately.</span>
+                  </p>
+                )}
+              </SettingsCard>
+            </div>
+
+            {/* 2. Telemetry Section */}
+            <div
+              ref={(el) => {
+                sectionRefs.current.telemetry = el;
+              }}
+            >
+              <SettingsCard
+                id="telemetry"
+                icon={Activity}
+                title="Telemetry cadence"
+                description="Controls background polling frequency for health, latency metrics, and topology status."
+                statusSlot={
+                  <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-[var(--accent-soft)] border border-[var(--accent)]/35 text-[var(--accent)] np-mono-val text-[12px]">
+                    {form.pollingIntervalSec} s
+                  </span>
+                }
               >
-                <SettingsCard
-                  id="safety"
-                  icon={Shield}
-                  title="Safety policies"
-                  description="Operational guardrails protecting local and external networks from unapproved traffic."
-                  statusSlot={
-                    <StatusChip size="sm" tone={safetyChip.tone} label={safetyChip.label} />
-                  }
-                >
-                  <div className="space-y-3">
-                    <Switch
-                      checked={form.passiveEnumeration}
-                      disabled={readOnlyMode}
-                      onChange={(next) => handlePolicyToggle('passiveEnumeration', next)}
-                      title="Passive local enumeration"
-                      description="Discover local interfaces and neighbors using OS route and ARP tables without external port sweeps."
-                      onLearnMore={() => setLearnMorePolicy('passiveEnumeration')}
-                      auditNote={auditNotes.passiveEnumeration}
-                    />
-
-                    <Switch
-                      checked={form.manualTargetSelection}
-                      disabled={readOnlyMode}
-                      onChange={(next) => handlePolicyToggle('manualTargetSelection', next)}
-                      title="Manual target selection for active probes"
-                      description="Require explicit operator approval before sending ICMP, TCP, or traceroute packets to any host."
-                      onLearnMore={() => setLearnMorePolicy('manualTargetSelection')}
-                      auditNote={auditNotes.manualTargetSelection}
-                    />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="np-field-label">Polling interval</span>
+                    <span className="text-[12px] font-mono text-[var(--text-muted)]">
+                      ~{requestsPerMin} req/min to gateway
+                    </span>
                   </div>
-                </SettingsCard>
-              </div>
 
-              {/* Page Footer */}
-              <footer className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)]">
-                <span className="text-[12px] text-[var(--text-muted)]">
-                  Preferences apply to this operator console and sync immediately on save.
-                </span>
-                <button
-                  type="button"
-                  disabled={readOnlyMode}
-                  onClick={() => setResetConfirmOpen(true)}
-                  className="h-9 px-2.5 rounded-[var(--radius-control)] inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] disabled:opacity-40 transition-colors"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Reset to defaults</span>
-                </button>
-              </footer>
-            </form>
-          )}
+                  <Slider
+                    value={form.pollingIntervalSec}
+                    min={2}
+                    max={30}
+                    step={1}
+                    ticks={POLL_TICKS}
+                    minLabel="2s · lowest lag"
+                    maxLabel="30s · lowest CPU"
+                    unit="s"
+                    ariaLabel="Polling interval"
+                    onChange={(val) =>
+                      setForm((prev) => ({ ...prev, pollingIntervalSec: val }))
+                    }
+                  />
+
+                  <p className="text-[12px] text-[var(--text-secondary)]">
+                    <strong>Consequence:</strong> Shorter intervals (2–4s) surface link drops faster but increase local socket and backend SQLite reads; 10–30s reduces CPU and battery overhead.
+                  </p>
+
+                  {form.pollingIntervalSec < 3 && (
+                    <p className="flex items-start gap-1.5 text-[13px] leading-5 text-[var(--warn)]">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                      <span>High polling cadence (2s) increases CPU and socket activity on the backend.</span>
+                    </p>
+                  )}
+                </div>
+              </SettingsCard>
+            </div>
+
+            {/* 3. Safety Section */}
+            <div
+              ref={(el) => {
+                sectionRefs.current.safety = el;
+              }}
+            >
+              <SettingsCard
+                id="safety"
+                icon={Shield}
+                title="Safety policies"
+                description="Operational guardrails preventing unintended active subnet sweeps or unapproved probes."
+                statusSlot={<StatusChip size="sm" tone={safetyChip.tone} label={safetyChip.label} />}
+              >
+                <div className="space-y-3">
+                  <Switch
+                    checked={form.passiveEnumeration}
+                    onChange={(next) => handlePolicyToggle('passiveEnumeration', next)}
+                    title="Passive local enumeration"
+                    description="Uses OS routing tables and kernel ARP cache instead of subnet-wide sweeps. Consequence of disabling: permits active subnet discovery traffic on LAN links."
+                    onLearnMore={() => setLearnMorePolicy('passiveEnumeration')}
+                    auditNote={auditNotes.passiveEnumeration}
+                  />
+
+                  <Switch
+                    checked={form.manualTargetSelection}
+                    onChange={(next) => handlePolicyToggle('manualTargetSelection', next)}
+                    title="Manual target selection for active probes"
+                    description="Requires operator confirmation before transmitting ICMP, TCP, or traceroute traffic. Consequence of disabling: automated triggers can send packets without review."
+                    onLearnMore={() => setLearnMorePolicy('manualTargetSelection')}
+                    auditNote={auditNotes.manualTargetSelection}
+                  />
+                </div>
+              </SettingsCard>
+            </div>
+
+            {/* Footer with Confirm-Before-Reset */}
+            <footer className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)]">
+              <span className="text-[12px] text-[var(--text-muted)]">
+                Settings persist in this console and apply immediately on save.
+              </span>
+              <button
+                type="button"
+                onClick={() => setResetConfirmOpen(true)}
+                className="h-9 px-3 rounded-[var(--radius-control)] inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Reset to defaults</span>
+              </button>
+            </footer>
+          </form>
         </div>
 
-        {/* Sticky Right Rail: Current Configuration (>=1280px beside form, below on smaller) */}
-        <aside aria-label="Current configuration summary" className="xl:sticky xl:top-24 space-y-4">
-          <div className="np-card p-6 space-y-5">
-            <div className="flex items-center justify-between gap-2 pb-4 border-b border-[var(--border)]">
-              <h2 className="np-section-title">Current configuration</h2>
+        {/* Right Sticky Summary Card — properly constrained with w-full min-w-0 so NEVER clipped */}
+        <aside aria-label="Current configuration summary" className="w-full min-w-0 lg:sticky lg:top-20">
+          <div className="np-card p-5 space-y-4">
+            <div className="flex items-center justify-between gap-2 pb-3 border-b border-[var(--border)]">
+              <h2 className="np-section-title">Active configuration</h2>
               <StatusChip
                 size="sm"
                 tone={backendOnline ? 'ok' : 'danger'}
@@ -712,14 +700,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               />
             </div>
 
-            <dl className="space-y-4 text-[13px]">
+            <dl className="space-y-3.5 text-[13px]">
               <div className="space-y-1">
-                <dt className="text-[var(--text-muted)]">Effective API URL</dt>
-                <dd className="np-mono-val text-[var(--text)] break-all">{savedConfig.gatewayUrl}</dd>
+                <dt className="text-[var(--text-muted)]">Saved gateway URL</dt>
+                <dd className="np-mono-val text-[var(--text)] break-all" title={savedConfig.gatewayUrl}>
+                  {savedConfig.gatewayUrl}
+                </dd>
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-[var(--text-muted)]">Polling interval</dt>
+                <dt className="text-[var(--text-muted)]">Polling cadence</dt>
                 <dd className="np-mono-val text-[var(--text)]">{savedConfig.pollingIntervalSec} s</dd>
               </div>
 
@@ -731,28 +721,31 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-[var(--text-muted)]">Active policies</dt>
+                <dt className="text-[var(--text-muted)]">Safety guardrails</dt>
                 <dd className="np-mono-val text-[var(--text)]">
-                  {(savedConfig.passiveEnumeration ? 1 : 0) + (savedConfig.manualTargetSelection ? 1 : 0)} of 2
+                  {(savedConfig.passiveEnumeration ? 1 : 0) +
+                    (savedConfig.manualTargetSelection ? 1 : 0)}{' '}
+                  of 2 active
                 </dd>
               </div>
 
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-[var(--text-muted)]">Last saved</dt>
-                <dd className="np-mono-val text-[var(--text-secondary)]">
-                  {lastSavedTime} (v{configVersion})
+              <div className="pt-2 border-t border-[var(--border)] space-y-1">
+                <dt className="text-[var(--text-muted)]">Last saved revision</dt>
+                <dd className="font-mono text-[12px] text-[var(--text-secondary)] leading-5">
+                  {formattedLastSaved}
+                  {lastSavedIso ? ` · v${configVersion}` : ''}
                 </dd>
               </div>
             </dl>
 
-            <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between">
+            <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between gap-2">
               <a
                 href={`${savedConfig.gatewayUrl}/docs`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] rounded px-0.5"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]"
               >
-                <span>Open API reference</span>
+                <span>OpenAPI docs</span>
                 <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
               </a>
 
@@ -762,57 +755,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   onClick={onRetryGateway}
                   className="text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)]"
                 >
-                  Retry
+                  Retry connection
                 </button>
               )}
             </div>
           </div>
-
-          {/* Discreet State Inspection Controls for Operator Verification */}
-          <details className="np-card p-4 group">
-            <summary className="text-[12px] font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] cursor-pointer select-none flex items-center justify-between list-none">
-              <span>Preview UI states</span>
-              <span className="font-mono text-[12px]">Inspect</span>
-            </summary>
-            <div className="pt-3 mt-3 border-t border-[var(--border)] space-y-2 text-[12px]">
-              <button
-                type="button"
-                onClick={triggerLoadingPreview}
-                className="w-full h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] hover:bg-[var(--surface-3)] text-left text-[var(--text-secondary)]"
-              >
-                Show loading skeleton (1.2s)
-              </button>
-              <label className="flex items-center justify-between h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
-                <span className="text-[var(--text-secondary)]">Read-only permission mode</span>
-                <input
-                  type="checkbox"
-                  checked={readOnlyMode}
-                  onChange={(e) => setReadOnlyMode(e.target.checked)}
-                  className="accent-[var(--accent)]"
-                />
-              </label>
-              <label className="flex items-center justify-between h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
-                <span className="text-[var(--text-secondary)]">Simulate save failure</span>
-                <input
-                  type="checkbox"
-                  checked={simulateSaveFail}
-                  onChange={(e) => setSimulateSaveFail(e.target.checked)}
-                  className="accent-[var(--accent)]"
-                />
-              </label>
-            </div>
-          </details>
         </aside>
       </div>
 
-      {/* Sticky Bottom Action Bar */}
+      {/* Save / Discard Bar on Unsaved Changes */}
       <ActionBar
         visible={isDirty}
         dirtyCount={dirtyFields}
-        invalid={hasValidationError || readOnlyMode}
+        invalid={hasValidationError}
         saveState={saveState}
         errorMessage={saveErrorMsg}
-        onReset={handleReset}
+        onReset={handleDiscard}
         onSave={handleSave}
         sidebarCollapsed={sidebarCollapsed}
       />
@@ -830,26 +788,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         }
         description={
           pendingDisablePolicy === 'passiveEnumeration'
-            ? 'NetPulse will be allowed to run active scans against unapproved subnets. This is logged.'
-            : 'Active ICMP and TCP socket probes may dispatch without manual operator review. This is logged.'
+            ? 'NetPulse will be permitted to run active discovery probes across local subnets.'
+            : 'Active ICMP and TCP probes can dispatch automatically without per-target operator confirmation.'
         }
-        confirmLabel="Disable policy"
-        cancelLabel="Cancel"
+        confirmLabel="Stage override"
+        cancelLabel="Keep policy enabled"
       />
 
-      {/* Reset to Defaults Confirmation Dialog */}
+      {/* Confirm Before Reset Dialog */}
       <Dialog
         open={resetConfirmOpen}
         onClose={() => setResetConfirmOpen(false)}
         onConfirm={handleResetToDefaults}
-        tone="accent"
-        title="Reset to factory defaults?"
-        description="Restores the default localhost API address (http://127.0.0.1:8000), 5s polling cadence, and both safety policies."
-        confirmLabel="Stage defaults"
+        tone="danger"
+        title="Reset settings to factory defaults?"
+        description="This stages the default gateway URL (http://127.0.0.1:8000), 5s telemetry polling interval, and enables both safety policies. You can review or Discard before saving."
+        confirmLabel="Confirm reset to defaults"
         cancelLabel="Cancel"
       />
 
-      {/* Policy Documentation Info Dialog */}
+      {/* Policy Documentation Dialog */}
       <Dialog
         open={learnMorePolicy !== null}
         onClose={() => setLearnMorePolicy(null)}
@@ -862,8 +820,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         }
         description={
           learnMorePolicy === 'passiveEnumeration'
-            ? 'Reads your local OS routing tables and kernel ARP cache without transmitting intrusive subnet sweeps.'
-            : 'Prevents accidental probing of unauthorized hosts by requiring an explicit IPv4 or domain input.'
+            ? 'Reads OS routing tables and kernel ARP cache without transmitting intrusive subnet sweeps.'
+            : 'Requires explicit target approval before dispatching active ICMP, TCP, or traceroute packets.'
         }
         confirmLabel="Got it"
         cancelLabel="Close"
