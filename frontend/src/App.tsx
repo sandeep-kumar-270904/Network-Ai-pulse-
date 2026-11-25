@@ -27,7 +27,7 @@ import {
   getStoredGatewayUrl,
   setApiBaseUrl,
 } from './services/api';
-import { HealthResponse } from './types';
+import { HealthResponse, GlobalHealthLevel } from './types';
 
 const SIDEBAR_STORAGE_KEY = 'netpulse_sidebar_collapsed';
 const THEME_STORAGE_KEY = 'netpulse_theme';
@@ -281,6 +281,22 @@ const AppLayout: React.FC = () => {
 
   const isSettingsPage = location.pathname === '/settings';
 
+  const probeStatus = healthData?.probe_health?.status;
+  const globalHealth: GlobalHealthLevel = !backendOnline
+    ? 'critical'
+    : probeStatus === 'critical'
+    ? 'critical'
+    : probeStatus === 'degraded' || (gatewayLatencyMs !== undefined && gatewayLatencyMs > 150)
+    ? 'degraded'
+    : 'healthy';
+
+  const globalHealthReason = !backendOnline
+    ? `Gateway unreachable at ${gatewayUrl}`
+    : healthData?.probe_health?.reason ||
+      (gatewayLatencyMs !== undefined && gatewayLatencyMs > 150
+        ? `Gateway latency elevated (${gatewayLatencyMs} ms)`
+        : 'All recent probes passed.');
+
   return (
     <div className="min-h-screen np-canvas text-[var(--text)] flex">
       <a href="#main-content" className="np-skip-link">
@@ -294,6 +310,8 @@ const AppLayout: React.FC = () => {
         onCloseMobile={() => setMobileOpen(false)}
         onOpenPalette={() => setPaletteOpen(true)}
         backendOnline={backendOnline}
+        globalHealth={globalHealth}
+        globalHealthReason={globalHealthReason}
         version="v1.0.0"
       />
 
@@ -308,6 +326,8 @@ const AppLayout: React.FC = () => {
           gatewayUrl={gatewayUrl}
           gatewayLatencyMs={gatewayLatencyMs}
           backendOnline={backendOnline}
+          globalHealth={globalHealth}
+          globalHealthReason={globalHealthReason}
           lastSyncAt={lastSyncAt}
           pollingSec={pollingSec}
           timeRange={timeRange}
@@ -361,6 +381,41 @@ const AppLayout: React.FC = () => {
             </div>
           )}
 
+          {backendOnline && globalHealth !== 'healthy' && (
+            <div
+              role="status"
+              className={`mb-6 p-4 rounded-[var(--radius-card)] border flex flex-wrap items-center justify-between gap-3 ${
+                globalHealth === 'critical'
+                  ? 'bg-[var(--danger-soft)] border-[var(--danger)]/35'
+                  : 'bg-[var(--warn-soft)] border-[var(--warn)]/35'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle
+                  className={`w-5 h-5 shrink-0 mt-0.5 ${
+                    globalHealth === 'critical' ? 'text-[var(--danger)]' : 'text-[var(--warn)]'
+                  }`}
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="text-[14px] font-semibold text-[var(--text)]">
+                    {globalHealth === 'critical' ? 'Critical probe failures detected' : 'Network health degraded'}
+                  </p>
+                  <p className="text-[13px] text-[var(--text-secondary)]">{globalHealthReason}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => navigate('/alerts')}
+                  className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[13px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)]"
+                >
+                  Inspect alerts
+                </button>
+              </div>
+            </div>
+          )}
+
           {!isSettingsPage && (
             <div className="mb-6 space-y-1">
               <h1 className="np-page-title">{currentMeta.title}</h1>
@@ -378,6 +433,7 @@ const AppLayout: React.FC = () => {
                   health={healthData}
                   system={systemData}
                   networkEnv={networkEnvData}
+                  timeRange={timeRange}
                 />
               }
             />
@@ -389,7 +445,7 @@ const AppLayout: React.FC = () => {
             <Route path="/ai-analysis" element={<AIAnalysis />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/history" element={<TestHistory />} />
-            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/analytics" element={<Analytics timeRange={timeRange} />} />
             <Route path="/reports" element={<Reports />} />
             <Route
               path="/system"

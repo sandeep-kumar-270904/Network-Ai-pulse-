@@ -25,6 +25,7 @@ from core.diagnostics import (
     execute_ping,
     execute_tcp_probe,
     execute_traceroute,
+    get_database_info,
     get_default_gateway,
     get_arp_neighbors,
     get_test_history,
@@ -34,6 +35,7 @@ from core.engines import (
     acknowledge_event,
     add_inventory_node,
     clear_events,
+    compute_global_health,
     create_automation_job,
     delete_automation_job,
     delete_inventory_node,
@@ -44,6 +46,7 @@ from core.engines import (
     get_inventory_nodes,
     run_ai_anomaly_analysis,
     run_automation_job_now,
+    set_anomaly_false_positive,
     tick_automation_scheduler,
     toggle_automation_job,
 )
@@ -264,13 +267,16 @@ def root() -> Dict[str, Any]:
 
 
 @app.get("/health", tags=["Health"])
-def health_check() -> Dict[str, Any]:
+def health_check(gateway_latency_ms: Optional[float] = None) -> Dict[str, Any]:
     """
-    Health-check endpoint consumed by the Streamlit dashboard.
-    Returns operational status, uptime reference, and system metadata.
+    Health-check endpoint consumed by the dashboard.
+    Returns service availability plus real probe-derived operational health and database info.
     """
+    db_info = get_database_info()
+    probe_health = compute_global_health(gateway_latency_ms=gateway_latency_ms)
     return {
         "status": "healthy",
+        "overall_status": probe_health["status"],
         "application": APP_NAME,
         "version": APP_VERSION,
         "environment": "development",
@@ -281,6 +287,8 @@ def health_check() -> Dict[str, Any]:
             "api": "operational",
             "database": "sqlite_active",
         },
+        "database_info": db_info,
+        "probe_health": probe_health,
     }
 
 
@@ -667,17 +675,44 @@ def purge_alerts() -> Dict[str, Any]:
     return {"status": "ok", "timestamp": _utc_now()}
 
 
+class FalsePositiveRequest(BaseModel):
+    false_positive: bool = True
+    note: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Analytics & AI Anomaly Detection Routes
 # ---------------------------------------------------------------------------
 @app.get("/api/analytics", tags=["Analytics"])
-def analytics_summary(limit: int = 100) -> Dict[str, Any]:
-    return {"status": "ok", "timestamp": _utc_now(), "analytics": get_analytics_summary(limit=limit)}
+def analytics_summary(window: str = "1h", limit: int = 500) -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "timestamp": _utc_now(),
+        "analytics": get_analytics_summary(window=window, limit=limit),
+    }
 
 
 @app.post("/api/ai/analyze", tags=["AI Analysis"])
 def ai_anomaly_scan() -> Dict[str, Any]:
     return {"status": "ok", "timestamp": _utc_now(), "analysis": run_ai_anomaly_analysis()}
+
+
+@app.post("/api/ai/false-positive/{test_id}", tags=["AI Analysis"])
+def ai_toggle_false_positive(test_id: str, payload: FalsePositiveRequest) -> Dict[str, Any]:
+    updated = set_anomaly_false_positive(
+        test_id=test_id,
+        false_positive=payload.false_positive,
+        note=payload.note,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Test run '{test_id}' not found")
+    return {
+        "status": "ok",
+        "timestamp": _utc_now(),
+        "test_id": test_id,
+        "false_positive": payload.false_positive,
+        "analysis": run_ai_anomaly_analysis(),
+    }
 
 
 # ---------------------------------------------------------------------------

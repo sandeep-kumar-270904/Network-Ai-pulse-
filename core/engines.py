@@ -14,7 +14,7 @@ import sqlite3
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from core.diagnostics import (
@@ -513,8 +513,27 @@ def clear_events() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. Real-Time Analytics Engine (Percentiles & Time-Series)
+# 4. Real-Time Analytics Engine (Percentiles, Outages & Time-Windowed SLA)
 # ---------------------------------------------------------------------------
+WINDOW_DELTAS: Dict[str, Optional[timedelta]] = {
+    "15m": timedelta(minutes=15),
+    "1h": timedelta(hours=1),
+    "6h": timedelta(hours=6),
+    "24h": timedelta(hours=24),
+    "7d": timedelta(days=7),
+    "all": None,
+}
+
+WINDOW_LABELS: Dict[str, str] = {
+    "15m": "Last 15m",
+    "1h": "Last 1h",
+    "6h": "Last 6h",
+    "24h": "Last 24h",
+    "7d": "Last 7d",
+    "all": "All recorded",
+}
+
+
 def _percentile(sorted_vals: List[float], p: float) -> Optional[float]:
     if not sorted_vals:
         return None
@@ -522,110 +541,278 @@ def _percentile(sorted_vals: List[float], p: float) -> Optional[float]:
     lo = math.floor(idx)
     hi = math.ceil(idx)
     if lo == hi:
-        return round(sorted_vals[int(idx)], 2)
+        return round(sorted_vals[int(idx)], 1)
     val = sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (idx - lo)
-    return round(val, 2)
+    return round(val, 1)
 
 
-def get_analytics_summary(limit: int = 100) -> Dict[str, Any]:
-    """Compute genuine P50/P95/P99 latency percentiles, SLA, and time-series from SQLite."""
+def get_analytics_summary(window: str = "1h", limit: int = 500) -> Dict[str, Any]:
+    """
+    Compute canonical pass rate, P50/P95/P99 latency percentiles, and gap-preserving
+    time-series from SQLite within the specified time window.
+    Failed or missing measurements stay None (never coerced to 0.0).
+    """
+    norm_window = window if window in WINDOW_DELTAS else "1h"
+    delta = WINDOW_DELTAS[norm_window]
+    cutoff_iso = (datetime.now(timezone.utc) - delta).isoformat() if delta else None
+
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT * FROM test_history ORDER BY timestamp DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if cutoff_iso:
+            rows = conn.execute(
+                "SELECT * FROM test_history WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?",
+                (cutoff_iso, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM test_history ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
 
     records = [dict(r) for r in rows]
     total_tests = len(records)
 
     if total_tests == 0:
         return {
+            "window": norm_window,
+            "window_label": WINDOW_LABELS[norm_window],
             "total_tests": 0,
-            "success_rate_pct": 100.0,
+            "passed_tests": 0,
+            "failed_tests": 0,
+            "pass_rate_pct": None,
+            "success_rate_pct": None,
             "p50_ms": None,
             "p95_ms": None,
             "p99_ms": None,
             "avg_jitter_ms": None,
-            "avg_loss_pct": 0.0,
-            "series": {"timestamps": [], "latency": [], "jitter": [], "loss": []},
+            "avg_loss_pct": None,
+            "outage_count": 0,
+            "series": {
+                "timestamps": [],
+                "iso_timestamps": [],
+                "latency": [],
+                "jitter": [],
+                "loss": [],
+                "statuses": [],
+                "targets": [],
+            },
+            "outages": [],
             "per_target": [],
         }
 
     passed = sum(1 for r in records if r["status"] == "passed")
-    success_rate = round((passed / total_tests) * 100, 2)
+    failed = total_tests - passed
+    pass_rate = round((passed / total_tests) * 100, 1)
 
-    rtts = sorted([float(r["avg_rtt_ms"]) for r in records if r["avg_rtt_ms"] is not None])
-    jitters = [float(r["jitter_ms"]) for r in records if r["jitter_ms"] is not None]
+    rtts = sorted([float(r["avg_rtt_ms"]) for r in records if r["avg_rtt_ms"] is not None and r["status"] == "passed"])
+    jitters = [float(r["jitter_ms"]) for r in records if r["jitter_ms"] is not None and r["status"] == "passed"]
     losses = [float(r["packet_loss_pct"]) for r in records if r["packet_loss_pct"] is not None]
 
-    # Chronological order for charts
-    chrono = list(reversed(records[:30]))
-    timestamps = []
-    latency_vals = []
-    jitter_vals = []
-    loss_vals = []
-    for r in chrono:
-        try:
-            dt = datetime.fromisoformat(r["timestamp"])
-            timestamps.append(dt.strftime("%H:%M:%S"))
-        except Exception:
-            timestamps.append(r["timestamp"][11:19])
-        latency_vals.append(r["avg_rtt_ms"] if r["avg_rtt_ms"] is not None else 0.0)
-        jitter_vals.append(r["jitter_ms"] if r["jitter_ms"] is not None else 0.0)
-        loss_vals.append(r["packet_loss_pct"] if r["packet_loss_pct"] is not None else 0.0)
+    # Chronological order (up to 60 points in window)
+    chrono = list(reversed(records[:60]))
+    timestamps: List[str] = []
+    iso_timestamps: List[str] = []
+    latency_vals: List[Optional[float]] = []
+    jitter_vals: List[Optional[float]] = []
+    loss_vals: List[Optional[float]] = []
+    statuses: List[str] = []
+    targets: List[str] = []
+    outages: List[Dict[str, Any]] = []
 
-    # Group by target
+    for idx, r in enumerate(chrono):
+        iso_ts = r["timestamp"]
+        iso_timestamps.append(iso_ts)
+        try:
+            dt = datetime.fromisoformat(iso_ts).astimezone(timezone.utc)
+            timestamps.append(dt.strftime("%Y-%m-%d %H:%M:%S UTC"))
+        except Exception:
+            timestamps.append(f"{iso_ts[:19].replace('T', ' ')} UTC")
+
+        is_failed = r["status"] != "passed" or r["avg_rtt_ms"] is None
+        statuses.append("failed" if is_failed else "passed")
+        targets.append(r["target"])
+
+        if is_failed:
+            latency_vals.append(None)
+            jitter_vals.append(None)
+            outages.append({
+                "index": idx,
+                "timestamp": timestamps[-1],
+                "iso_timestamp": iso_ts,
+                "target": r["target"],
+                "loss_pct": r["packet_loss_pct"] if r["packet_loss_pct"] is not None else 100.0,
+                "label": f"Probe failed ({r['target']})",
+            })
+        else:
+            latency_vals.append(round(float(r["avg_rtt_ms"]), 1))
+            jitter_vals.append(round(float(r["jitter_ms"]), 2) if r["jitter_ms"] is not None else None)
+
+        loss_vals.append(round(float(r["packet_loss_pct"]), 1) if r["packet_loss_pct"] is not None else None)
+
     target_map: Dict[str, List[Dict[str, Any]]] = {}
     for r in records:
-        t = r["target"]
-        target_map.setdefault(t, []).append(r)
+        target_map.setdefault(r["target"], []).append(r)
 
     per_target = []
     for t, items in target_map.items():
-        t_rtts = [float(i["avg_rtt_ms"]) for i in items if i["avg_rtt_ms"] is not None]
-        t_jitters = [float(i["jitter_ms"]) for i in items if i["jitter_ms"] is not None]
+        t_rtts = [float(i["avg_rtt_ms"]) for i in items if i["avg_rtt_ms"] is not None and i["status"] == "passed"]
+        t_jitters = [float(i["jitter_ms"]) for i in items if i["jitter_ms"] is not None and i["status"] == "passed"]
         t_losses = [float(i["packet_loss_pct"]) for i in items if i["packet_loss_pct"] is not None]
+        t_passed = sum(1 for i in items if i["status"] == "passed")
         per_target.append({
             "target": t,
             "runs": len(items),
-            "avg_rtt_ms": round(sum(t_rtts) / len(t_rtts), 2) if t_rtts else None,
-            "avg_jitter_ms": round(sum(t_jitters) / len(t_jitters), 2) if t_jitters else 0.0,
-            "avg_loss_pct": round(sum(t_losses) / len(t_losses), 1) if t_losses else 0.0,
+            "passed_runs": t_passed,
+            "pass_rate_pct": round((t_passed / len(items)) * 100, 1),
+            "avg_rtt_ms": round(sum(t_rtts) / len(t_rtts), 1) if t_rtts else None,
+            "avg_jitter_ms": round(sum(t_jitters) / len(t_jitters), 2) if t_jitters else None,
+            "avg_loss_pct": round(sum(t_losses) / len(t_losses), 1) if t_losses else None,
         })
 
     return {
+        "window": norm_window,
+        "window_label": WINDOW_LABELS[norm_window],
         "total_tests": total_tests,
-        "success_rate_pct": success_rate,
+        "passed_tests": passed,
+        "failed_tests": failed,
+        "pass_rate_pct": pass_rate,
+        "success_rate_pct": pass_rate,
         "p50_ms": _percentile(rtts, 50),
         "p95_ms": _percentile(rtts, 95),
         "p99_ms": _percentile(rtts, 99),
-        "avg_jitter_ms": round(sum(jitters) / len(jitters), 2) if jitters else 0.0,
-        "avg_loss_pct": round(sum(losses) / len(losses), 2) if losses else 0.0,
+        "avg_jitter_ms": round(sum(jitters) / len(jitters), 2) if jitters else None,
+        "avg_loss_pct": round(sum(losses) / len(losses), 1) if losses else None,
+        "outage_count": len(outages),
         "series": {
             "timestamps": timestamps,
+            "iso_timestamps": iso_timestamps,
             "latency": latency_vals,
             "jitter": jitter_vals,
             "loss": loss_vals,
+            "statuses": statuses,
+            "targets": targets,
         },
+        "outages": outages,
         "per_target": per_target,
+    }
+
+
+def compute_global_health(gateway_latency_ms: Optional[float] = None) -> Dict[str, Any]:
+    """
+    Derive global health status ('healthy' | 'degraded' | 'critical') from recent
+    diagnostic test results and gateway latency; raise a deduplicated alert when degraded/critical.
+    """
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, timestamp, target, status, packet_loss_pct FROM test_history ORDER BY timestamp DESC LIMIT 10"
+        ).fetchall()
+
+    recent = [dict(r) for r in rows]
+    total = len(recent)
+
+    if total == 0:
+        return {
+            "status": "healthy",
+            "reason": "No recent probe failures recorded.",
+            "recent_total": 0,
+            "recent_failed": 0,
+            "pass_rate_pct": None,
+            "consecutive_failures": 0,
+        }
+
+    failed = sum(1 for r in recent if r["status"] != "passed")
+    pass_rate = round(((total - failed) / total) * 100, 1)
+    consecutive_failures = 0
+    for r in recent:
+        if r["status"] != "passed":
+            consecutive_failures += 1
+        else:
+            break
+
+    fail_ratio = failed / total
+    if consecutive_failures >= 3 or fail_ratio >= 0.5:
+        status = "critical"
+        reason = f"{failed} of {total} recent probes failed ({consecutive_failures} consecutive)"
+    elif failed > 0 or (gateway_latency_ms is not None and gateway_latency_ms > 150):
+        status = "degraded"
+        if failed > 0:
+            reason = f"{failed} of {total} recent probes failed (pass rate {pass_rate:.1f}%)"
+        else:
+            reason = f"Gateway latency elevated ({gateway_latency_ms} ms)"
+    else:
+        status = "healthy"
+        reason = f"All {total} recent probes passed"
+
+    # Raise deduplicated operational alert when degraded or critical
+    if status in ("degraded", "critical"):
+        alert_level = "critical" if status == "critical" else "warning"
+        alert_msg = f"Global system health is {status}: {reason}."
+        try:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.row_factory = sqlite3.Row
+                last_evt = conn.execute(
+                    "SELECT level, message FROM events WHERE source = 'Health Monitor' ORDER BY timestamp DESC LIMIT 1"
+                ).fetchone()
+                should_log = (
+                    last_evt is None
+                    or last_evt["level"] != alert_level
+                    or last_evt["message"] != alert_msg
+                )
+            if should_log:
+                log_event(alert_level, "Health Monitor", alert_msg)
+        except Exception:
+            pass
+
+    return {
+        "status": status,
+        "reason": reason,
+        "recent_total": total,
+        "recent_failed": failed,
+        "pass_rate_pct": pass_rate,
+        "consecutive_failures": consecutive_failures,
     }
 
 
 # ---------------------------------------------------------------------------
 # 5. Scikit-Learn AI Anomaly Detection Engine
 # ---------------------------------------------------------------------------
+JITTER_THRESHOLD_MS = 10.0
+LOSS_THRESHOLD_PCT = 0.0
+RTT_Z_MULTIPLIER = 1.5
+
+
+def set_anomaly_false_positive(test_id: str, false_positive: bool, note: str = "") -> bool:
+    """Persist or remove a false-positive operator annotation for a scored diagnostic run."""
+    with sqlite3.connect(DB_PATH) as conn:
+        if false_positive:
+            conn.execute(
+                "INSERT OR REPLACE INTO anomaly_feedback (test_id, marked_at, note) VALUES (?, ?, ?)",
+                (test_id, _utc_now(), note or "Marked as false positive by operator"),
+            )
+            conn.commit()
+            log_event("info", "Anomaly Detection", f"Run {test_id} marked as false positive by operator.")
+        else:
+            conn.execute("DELETE FROM anomaly_feedback WHERE test_id = ?", (test_id,))
+            conn.commit()
+            log_event("info", "Anomaly Detection", f"False-positive override removed for run {test_id}.")
+    return True
+
+
 def run_ai_anomaly_analysis() -> Dict[str, Any]:
     """
-    Train and execute Scikit-learn IsolationForest over real diagnostic history
-    in SQLite to flag latency spikes, jitter bursts, or packet-loss anomalies.
+    Train and execute Scikit-learn IsolationForest + threshold checks over SQLite
+    diagnostic history. Classifications, explanations, thresholds, confidence, and
+    false-positive annotations are strictly consistent.
     """
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM test_history ORDER BY timestamp DESC LIMIT 100"
         ).fetchall()
+        fp_rows = conn.execute("SELECT test_id, marked_at, note FROM anomaly_feedback").fetchall()
 
+    fp_map = {r["test_id"]: dict(r) for r in fp_rows}
     records = [dict(r) for r in rows]
     valid = [r for r in records if r["avg_rtt_ms"] is not None]
 
@@ -634,12 +821,12 @@ def run_ai_anomaly_analysis() -> Dict[str, Any]:
             "model": "IsolationForest (Insufficient Data)",
             "samples_analyzed": len(valid),
             "anomalies_found": 0,
+            "false_positives_count": len(fp_map),
             "status": "need_more_samples",
-            "message": f"Only {len(valid)} diagnostic sample(s) recorded. Run at least 3-5 ping/TCP tests to train the IsolationForest baseline.",
+            "message": f"Only {len(valid)} diagnostic sample(s) recorded. Run at least 3 ping or TCP tests to train the baseline.",
             "results": [],
         }
 
-    # Build feature matrix: [avg_rtt_ms, jitter_ms, packet_loss_pct, max_rtt_ms]
     features = []
     for r in valid:
         avg_r = float(r["avg_rtt_ms"] or 0.0)
@@ -650,65 +837,98 @@ def run_ai_anomaly_analysis() -> Dict[str, Any]:
 
     mean_rtt = sum(f[0] for f in features) / len(features)
     std_rtt = math.sqrt(sum((f[0] - mean_rtt) ** 2 for f in features) / len(features)) or 1.0
+    rtt_upper_threshold = round(mean_rtt + RTT_Z_MULTIPLIER * std_rtt, 1)
 
     used_model = "Scikit-learn IsolationForest"
     predictions: List[int] = []
-    scores: List[float] = []
+    raw_scores: List[float] = []
 
     if len(valid) >= 5:
         from sklearn.ensemble import IsolationForest
         clf = IsolationForest(contamination=0.15, random_state=42)
-        predictions = clf.fit_predict(features).tolist()  # 1 = normal, -1 = anomaly
-        raw_scores = clf.decision_function(features).tolist()
-        scores = [round(float(s), 4) for s in raw_scores]
+        predictions = clf.fit_predict(features).tolist()
+        raw_scores = [round(float(s), 4) for s in clf.decision_function(features).tolist()]
     else:
         used_model = "Statistical Z-Score Baseline (<5 samples)"
         for f in features:
             z = abs(f[0] - mean_rtt) / std_rtt
-            is_anom = -1 if (z > 1.8 or f[2] > 0) else 1
+            is_anom = -1 if (z > 1.8 or f[2] > 0 or f[1] > JITTER_THRESHOLD_MS) else 1
             predictions.append(is_anom)
-            scores.append(round(1.0 - min(z / 3.0, 1.0), 4))
+            raw_scores.append(round(1.0 - min(z / 3.0, 1.0), 4))
+
+    threshold_summary = f"RTT <= {rtt_upper_threshold:.1f} ms, Jitter <= {JITTER_THRESHOLD_MS:.1f} ms, Loss = 0.0%"
 
     results = []
     anomaly_count = 0
+    false_positive_count = 0
+
     for idx, r in enumerate(valid):
-        is_anomaly = predictions[idx] == -1 or float(r["packet_loss_pct"] or 0.0) > 0.0
-        if is_anomaly:
+        avg_r = round(float(r["avg_rtt_ms"] or 0.0), 1)
+        jit = round(float(r["jitter_ms"] or 0.0), 2)
+        loss = round(float(r["packet_loss_pct"] or 0.0), 1)
+        score = raw_scores[idx]
+
+        breached: List[str] = []
+        if loss > LOSS_THRESHOLD_PCT:
+            breached.append(f"Packet loss {loss:.1f}% > {LOSS_THRESHOLD_PCT:.1f}%")
+        if avg_r > rtt_upper_threshold:
+            breached.append(f"RTT {avg_r:.1f} ms > {rtt_upper_threshold:.1f} ms (mean + 1.5σ)")
+        if jit > JITTER_THRESHOLD_MS:
+            breached.append(f"Jitter {jit:.2f} ms > {JITTER_THRESHOLD_MS:.1f} ms")
+        if predictions[idx] == -1 and not breached:
+            breached.append(f"IsolationForest multivariate outlier (score {score:.4f} < 0.0)")
+
+        flagged = len(breached) > 0
+        is_fp = r["id"] in fp_map
+
+        # Confidence (50% - 99%) calibrated from decision margin + rule breach count
+        margin = abs(score)
+        if flagged:
+            confidence_pct = min(99, max(55, int(round(62 + margin * 90 + (len(breached) - 1) * 10))))
+        else:
+            confidence_pct = min(99, max(55, int(round(70 + margin * 80))))
+
+        if is_fp and flagged:
+            classification = "false_positive"
+            false_positive_count += 1
+            explanation = f"Suppressed false positive ({'; '.join(breached)})"
+        elif flagged:
+            classification = "anomaly"
             anomaly_count += 1
-        reasons = []
-        if float(r["packet_loss_pct"] or 0.0) > 0:
-            reasons.append(f"Packet loss ({r['packet_loss_pct']}%)")
-        if float(r["avg_rtt_ms"] or 0.0) > mean_rtt + 1.5 * std_rtt:
-            reasons.append(f"RTT ({r['avg_rtt_ms']}ms) exceeds dataset mean ({round(mean_rtt, 1)}ms)")
-        if float(r["jitter_ms"] or 0.0) > 10.0:
-            reasons.append(f"Elevated jitter ({r['jitter_ms']}ms)")
-        if not reasons and is_anomaly:
-            reasons.append("Multivariate feature outlier identified by IsolationForest")
+            explanation = "; ".join(breached)
+        else:
+            classification = "normal"
+            explanation = f"Within baseline ({threshold_summary})"
 
         results.append({
             "id": r["id"],
             "timestamp": r["timestamp"],
             "target": r["target"],
             "test_type": r["test_type"],
-            "avg_rtt_ms": r["avg_rtt_ms"],
-            "jitter_ms": r["jitter_ms"],
-            "packet_loss_pct": r["packet_loss_pct"],
-            "anomaly_score": scores[idx],
-            "classification": "anomaly" if is_anomaly else "normal",
-            "reason": "; ".join(reasons) if reasons else "Within normal baseline variance",
+            "avg_rtt_ms": avg_r,
+            "jitter_ms": jit,
+            "packet_loss_pct": loss,
+            "anomaly_score": score,
+            "confidence_pct": confidence_pct,
+            "threshold": threshold_summary,
+            "classification": classification,
+            "false_positive": is_fp,
+            "reason": explanation,
         })
 
     if anomaly_count > 0:
-        log_event("info", "AI Anomaly Engine", f"IsolationForest scan analyzed {len(valid)} runs and flagged {anomaly_count} anomaly(s).")
+        log_event("info", "AI Anomaly Engine", f"IsolationForest scan analyzed {len(valid)} runs and flagged {anomaly_count} active anomaly(s).")
 
     return {
         "model": used_model,
         "samples_analyzed": len(valid),
         "anomalies_found": anomaly_count,
-        "baseline_mean_rtt_ms": round(mean_rtt, 2),
-        "baseline_std_rtt_ms": round(std_rtt, 2),
+        "false_positives_count": false_positive_count,
+        "baseline_mean_rtt_ms": round(mean_rtt, 1),
+        "baseline_std_rtt_ms": round(std_rtt, 1),
+        "threshold": threshold_summary,
         "status": "completed",
-        "message": f"Analyzed {len(valid)} recorded diagnostic runs using {used_model}. Identified {anomaly_count} anomalous sample(s).",
+        "message": f"Analyzed {len(valid)} diagnostic runs using {used_model}. Active anomalies: {anomaly_count} ({false_positive_count} marked false positive).",
         "results": results,
     }
 

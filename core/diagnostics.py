@@ -86,6 +86,14 @@ def _init_db() -> None:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS anomaly_feedback (
+                test_id TEXT PRIMARY KEY,
+                marked_at TEXT NOT NULL,
+                note TEXT
+            )
+        """)
+
         # Seed default automation jobs if empty (disabled by default until operator enables)
         cur = conn.execute("SELECT COUNT(*) FROM automation_jobs")
         if cur.fetchone()[0] == 0:
@@ -101,6 +109,15 @@ def _init_db() -> None:
             ])
 
         conn.commit()
+
+
+def get_database_info() -> Dict[str, str]:
+    """Return the single truthful persistence configuration."""
+    return {
+        "engine": "SQLite",
+        "path": "data/netpulse.db",
+        "status": "connected" if os.path.exists(DB_PATH) else "initializing",
+    }
 
 
 def log_event(level: str, source: str, message: str) -> Dict[str, Any]:
@@ -278,7 +295,7 @@ def execute_ping(
     max_rtt = max(rtt_values) if rtt_values else None
     avg_rtt = round(sum(rtt_values) / len(rtt_values), 1) if rtt_values else None
 
-    jitter_ms = 0.0
+    jitter_ms: Optional[float] = 0.0 if rtt_values else None
     if len(rtt_values) > 1:
         diffs = [abs(rtt_values[i] - rtt_values[i - 1]) for i in range(1, len(rtt_values))]
         jitter_ms = round(sum(diffs) / len(diffs), 2)
@@ -287,9 +304,11 @@ def execute_ping(
     test_id = f"test-{int(time.time() * 1000)}"
     utc_timestamp = _utc_now()
 
+    rtt_str = f"{avg_rtt:.1f} ms" if avg_rtt is not None else "No data"
+    jit_str = f"{jitter_ms:.2f} ms" if jitter_ms is not None else "No data"
     summary = (
         f"{packets_received}/{packets_sent} packets received ({packet_loss_pct}% loss). "
-        f"Avg RTT: {avg_rtt if avg_rtt is not None else 'N/A'}ms, Jitter: {jitter_ms}ms"
+        f"Avg RTT: {rtt_str}, Jitter: {jit_str}"
     )
 
     record = {
@@ -394,7 +413,7 @@ def execute_tcp_probe(
     max_rtt = max(rtt_values) if rtt_values else None
     avg_rtt = round(sum(rtt_values) / len(rtt_values), 2) if rtt_values else None
 
-    jitter_ms = 0.0
+    jitter_ms: Optional[float] = 0.0 if rtt_values else None
     if len(rtt_values) > 1:
         diffs = [abs(rtt_values[i] - rtt_values[i - 1]) for i in range(1, len(rtt_values))]
         jitter_ms = round(sum(diffs) / len(diffs), 2)
@@ -402,9 +421,10 @@ def execute_tcp_probe(
     status = "passed" if packets_received > 0 else "failed"
     test_id = f"tcp-{int(time.time() * 1000)}"
     utc_timestamp = _utc_now()
+    syn_ack_str = f"{avg_rtt:.1f} ms" if avg_rtt is not None else "No data"
     summary = (
         f"TCP/{port} {packets_received}/{packets_sent} handshakes succeeded ({packet_loss_pct}% fail). "
-        f"Avg SYN-ACK: {avg_rtt if avg_rtt is not None else 'N/A'}ms"
+        f"Avg SYN-ACK: {syn_ack_str}"
     )
 
     record = {

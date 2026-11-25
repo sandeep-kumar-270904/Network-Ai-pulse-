@@ -308,9 +308,12 @@ export const clearAlerts = async (): Promise<boolean> => {
 };
 
 // Analytics & AI Anomaly Detection
-export const fetchAnalyticsSummary = async (limit: number = 100): Promise<{ analytics: any | null; error: string | null }> => {
+export const fetchAnalyticsSummary = async (
+  window: string = '1h',
+  limit: number = 500,
+): Promise<{ analytics: any | null; error: string | null }> => {
   try {
-    const res = await apiClient.get(`/api/analytics?limit=${limit}`);
+    const res = await apiClient.get(`/api/analytics?window=${encodeURIComponent(window)}&limit=${limit}`);
     return { analytics: res.data?.analytics || null, error: null };
   } catch (err: unknown) {
     return { analytics: null, error: extractAxiosError(err, 'Failed to fetch analytics') };
@@ -323,6 +326,22 @@ export const runAiAnomalyScan = async (): Promise<{ analysis: any | null; error:
     return { analysis: res.data?.analysis || null, error: null };
   } catch (err: unknown) {
     return { analysis: null, error: extractAxiosError(err, 'AI anomaly scan failed') };
+  }
+};
+
+export const toggleAnomalyFalsePositive = async (
+  testId: string,
+  falsePositive: boolean,
+  note: string = '',
+): Promise<{ analysis: any | null; error: string | null }> => {
+  try {
+    const res = await apiClient.post(`/api/ai/false-positive/${encodeURIComponent(testId)}`, {
+      false_positive: falsePositive,
+      note,
+    });
+    return { analysis: res.data?.analysis || null, error: null };
+  } catch (err: unknown) {
+    return { analysis: null, error: extractAxiosError(err, 'Failed to update false-positive flag') };
   }
 };
 

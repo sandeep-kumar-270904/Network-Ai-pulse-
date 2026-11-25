@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, AlertTriangle, AlertCircle, Info, CheckCircle2, Trash2, Check, RefreshCw } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, CheckCircle2, Trash2, Check, RefreshCw } from 'lucide-react';
 import { fetchAlerts, acknowledgeAlert, clearAlerts } from '../services/api';
+import { formatRelativeTime, formatTimestampUtc } from '../utils/formatters';
 
 export const Alerts: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
@@ -103,41 +104,45 @@ export const Alerts: React.FC = () => {
         {filteredEvents.map((evt) => (
           <div
             key={evt.id}
-            className={`p-4 rounded-xl bg-[#0D192B] border transition-colors flex flex-wrap items-center justify-between gap-3 font-mono text-xs ${
-              evt.acknowledged ? 'border-[#203750]/50 opacity-65' : 'border-[#203750]'
+            className={`p-4 rounded-[var(--radius-card)] bg-[var(--surface-1)] border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[13px] ${
+              evt.acknowledged ? 'border-[var(--border)]/60 opacity-65' : 'border-[var(--border)]'
             }`}
           >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5">{levelIcon(evt.level)}</div>
-              <div>
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="mt-0.5 shrink-0">{levelIcon(evt.level)}</div>
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase border ${levelBadge(evt.level)}`}>
+                  <span className={`px-2 py-0.5 rounded-[var(--radius-pill)] text-[11px] font-medium uppercase border ${levelBadge(evt.level)}`}>
                     {evt.level}
                   </span>
-                  <span className="text-[#EAF3FF] font-semibold">{evt.source}</span>
-                  <span className="text-[10px] text-[#647C96]">
-                    {evt.timestamp.replace('T', ' ').substring(0, 19)} UTC
+                  <span className="text-[var(--text)] font-semibold">{evt.source}</span>
+                  <span
+                    className="text-[12px] font-mono text-[var(--text-muted)]"
+                    title={formatRelativeTime(evt.timestamp)}
+                  >
+                    {formatTimestampUtc(evt.timestamp)}
                   </span>
                 </div>
-                <p className="text-[#91A7C0] text-[11px] mt-1">{evt.message}</p>
+                <p className="text-[var(--text-secondary)] text-[13px] mt-1 break-words">{evt.message}</p>
               </div>
             </div>
 
             {!evt.acknowledged ? (
               <button
+                type="button"
                 onClick={() => handleAck(evt.id)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#111E30] border border-[#203750] text-[#22D3EE] hover:border-[#22D3EE]/50 text-[10px]"
+                className="h-9 shrink-0 self-start sm:self-center flex items-center gap-1.5 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border-strong)] text-[var(--accent)] hover:bg-[var(--surface-3)] text-[12px] font-medium"
               >
-                <Check className="w-3 h-3" /> Acknowledge
+                <Check className="w-3.5 h-3.5" /> Acknowledge
               </button>
             ) : (
-              <span className="text-[10px] text-[#647C96]">Acknowledged</span>
+              <span className="text-[12px] text-[var(--text-muted)] shrink-0 self-start sm:self-center">Acknowledged</span>
             )}
           </div>
         ))}
 
         {filteredEvents.length === 0 && (
-          <div className="p-8 text-center text-xs font-mono text-[#647C96] border border-dashed border-[#203750] rounded-xl">
+          <div className="p-8 text-center text-[13px] text-[var(--text-muted)] border border-dashed border-[var(--border)] rounded-[var(--radius-card)]">
             No operational alerts matching filter.
           </div>
         )}

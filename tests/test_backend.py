@@ -341,3 +341,155 @@ class TestEnterpriseEngines:
         result = run_tcp_probe(req)
         assert result["status"] == "ok"
         assert result["data"]["packets_sent"] == 1
+        assert result["data"]["avg_rtt_ms"] is None
+        assert result["data"]["jitter_ms"] is None
+
+
+class TestPhase2DataIntegrity:
+    """Tests for Phase 2 data integrity, health derivation, and anomaly explainability."""
+
+    def test_database_info_truthful_sqlite(self):
+        from core.diagnostics import get_database_info
+
+        info = get_database_info()
+        assert info["engine"] == "SQLite"
+        assert info["path"] == "data/netpulse.db"
+        assert info["status"] in ("connected", "initializing")
+
+    def test_empty_dataset_returns_none_not_fake_zero_or_hundred(self, tmp_path, monkeypatch):
+        import core.diagnostics as diag
+        import core.engines as eng
+
+        temp_db = tmp_path / "empty_netpulse.db"
+        monkeypatch.setattr(diag, "DB_PATH", temp_db)
+        monkeypatch.setattr(eng, "DB_PATH", temp_db)
+        diag._init_db()
+
+        summary = eng.get_analytics_summary(window="1h", limit=500)
+        assert summary["window"] == "1h"
+        assert summary["window_label"] == "Last 1h"
+        assert summary["total_tests"] == 0
+        assert summary["pass_rate_pct"] is None
+        assert summary["success_rate_pct"] is None
+        assert summary["p50_ms"] is None
+        assert summary["p95_ms"] is None
+        assert summary["p99_ms"] is None
+        assert summary["series"]["timestamps"] == []
+        assert summary["series"]["latency"] == []
+
+        health = eng.compute_global_health()
+        assert health["status"] == "healthy"
+        assert health["recent_total"] == 0
+
+    def test_outage_null_latency_health_alert_and_anomaly_agreement(self, tmp_path, monkeypatch):
+        import sqlite3
+        from datetime import datetime, timezone
+        import core.diagnostics as diag
+        import core.engines as eng
+
+        temp_db = tmp_path / "outage_netpulse.db"
+        monkeypatch.setattr(diag, "DB_PATH", temp_db)
+        monkeypatch.setattr(eng, "DB_PATH", temp_db)
+        diag._init_db()
+
+        # Insert deterministic healthy baseline runs, a high-jitter anomaly, and a failed outage run
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with sqlite3.connect(temp_db) as conn:
+            for idx in range(5):
+                conn.execute(
+                    """INSERT INTO test_history
+                    (id, timestamp, test_type, target, status, duration_ms, packets_sent, packets_received, avg_rtt_ms, min_rtt_ms, max_rtt_ms, jitter_ms, packet_loss_pct, summary)
+                    VALUES (?, ?, 'ping', '1.1.1.1', 'passed', 25.0, 4, 4, 12.0, 11.0, 13.0, 0.8, 0.0, 'ok')""",
+                    (f"ok-{idx}", now_iso),
+                )
+            conn.execute(
+                """INSERT INTO test_history
+                (id, timestamp, test_type, target, status, duration_ms, packets_sent, packets_received, avg_rtt_ms, min_rtt_ms, max_rtt_ms, jitter_ms, packet_loss_pct, summary)
+                VALUES (?, ?, 'ping', '8.8.8.8', 'passed', 48.0, 4, 4, 14.0, 10.0, 40.0, 24.5, 0.0, 'high jitter')""",
+                ("anom-jitter", now_iso),
+            )
+            conn.commit()
+        diag.execute_tcp_probe("127.0.0.1", port=65432, count=1, timeout_ms=200)
+
+        # Verify windowed analytics returns None (not 0.0) for failed outage latency/jitter
+        summary = eng.get_analytics_summary(window="1h", limit=500)
+        assert summary["total_tests"] >= 7
+        assert summary["outage_count"] >= 1
+        failed_indices = [
+            i for i, st in enumerate(summary["series"]["statuses"]) if st != "passed"
+        ]
+        assert len(failed_indices) >= 1
+        for idx in failed_indices:
+            assert summary["series"]["latency"][idx] is None
+            assert summary["series"]["jitter"][idx] is None
+        assert summary["pass_rate_pct"] == summary["success_rate_pct"]
+
+        # Verify health endpoint derives non-healthy status when recent probes fail or latency spikes
+        health = eng.compute_global_health()
+        assert health["status"] in ("degraded", "critical")
+        assert health["recent_failed"] >= 1
+
+        # Verify Health Monitor alert was created cleanly
+        events = eng.get_events(limit=20)
+        assert any(ev["source"] == "Health Monitor" for ev in events)
+
+        # Verify high gateway latency triggers degraded health
+        lat_health = eng.compute_global_health(gateway_latency_ms=180.0)
+        assert lat_health["status"] in ("degraded", "critical")
+
+        # Verify anomaly labels and reasons agree, and false-positive toggle persists
+        analysis = eng.run_ai_anomaly_analysis()
+        assert analysis["status"] == "completed"
+        assert len(analysis["results"]) >= 6
+        jitter_row = [r for r in analysis["results"] if r["id"] == "anom-jitter"][0]
+        assert jitter_row["classification"] == "anomaly"
+        assert "jitter" in jitter_row["reason"].lower()
+
+        for rec in analysis["results"]:
+            assert "confidence_pct" in rec
+            assert "threshold" in rec
+            assert "reason" in rec
+            if rec["classification"] == "anomaly":
+                assert "within baseline" not in rec["reason"].lower()
+            elif rec["classification"] == "normal":
+                assert "within baseline" in rec["reason"].lower()
+
+        assert eng.set_anomaly_false_positive("anom-jitter", True, "Expected wireless jitter spike") is True
+        after_fp = eng.run_ai_anomaly_analysis()
+        updated = [r for r in after_fp["results"] if r["id"] == "anom-jitter"][0]
+        assert updated["classification"] == "false_positive"
+        assert updated["false_positive"] is True
+        assert after_fp["false_positives_count"] >= 1
+        assert eng.set_anomaly_false_positive("anom-jitter", False) is True
+
+    def test_api_routes_window_and_false_positive(self, tmp_path, monkeypatch):
+        import core.diagnostics as diag
+        import core.engines as eng
+        from backend.main import (
+            FalsePositiveRequest,
+            ai_toggle_false_positive,
+            analytics_summary,
+            health_check,
+        )
+
+        temp_db = tmp_path / "route_netpulse.db"
+        monkeypatch.setattr(diag, "DB_PATH", temp_db)
+        monkeypatch.setattr(eng, "DB_PATH", temp_db)
+        diag._init_db()
+        diag.execute_tcp_probe("127.0.0.1", port=65432, count=1, timeout_ms=200)
+
+        h = health_check()
+        assert h["status"] == "healthy"
+        assert h["database_info"]["engine"] == "SQLite"
+        assert h["probe_health"]["status"] in ("degraded", "critical")
+
+        a1 = analytics_summary(window="15m")
+        a2 = analytics_summary(window="1h")
+        assert a1["analytics"]["window"] == "15m"
+        assert a1["analytics"]["pass_rate_pct"] == a2["analytics"]["pass_rate_pct"]
+
+        history = diag.get_test_history(limit=1)
+        tid = history[0]["id"]
+        res = ai_toggle_false_positive(tid, FalsePositiveRequest(false_positive=True, note="Unit test"))
+        assert res["status"] == "ok"
+        assert res["false_positive"] is True

@@ -6,6 +6,7 @@ import {
   executeTracerouteDiagnostic,
   PingResultPayload,
 } from '../services/api';
+import { formatJitterMs, formatLatencyMs, formatPercent } from '../utils/formatters';
 
 type ProbeMode = 'ICMP' | 'TCP' | 'TRACEROUTE';
 
@@ -381,28 +382,34 @@ export const Diagnostics: React.FC = () => {
           </div>
 
           {lastResult && (
-            <div className="mt-4 p-3 rounded-lg bg-[#0D192B] border border-[#203750] grid grid-cols-4 gap-2 text-center text-[10px]">
+            <div className="mt-4 p-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] grid grid-cols-4 gap-2 text-center text-[12px] np-mono-val">
               <div>
-                <span className="text-[#647C96] block">Avg RTT</span>
-                <span className="text-sm font-bold text-[#00D69A]">{lastResult.avg_rtt_ms ?? 'N/A'}ms</span>
-              </div>
-              <div>
-                <span className="text-[#647C96] block">Loss</span>
-                <span
-                  className={`text-sm font-bold ${
-                    lastResult.packet_loss_pct === 0 ? 'text-[#00D69A]' : 'text-[#FF475F]'
-                  }`}
-                >
-                  {lastResult.packet_loss_pct}%
+                <span className="text-[var(--text-muted)] block">Avg RTT</span>
+                <span className="text-[14px] font-semibold text-[var(--ok)]">
+                  {formatLatencyMs(lastResult.avg_rtt_ms)}
                 </span>
               </div>
               <div>
-                <span className="text-[#647C96] block">Jitter</span>
-                <span className="text-sm font-bold text-[#22D3EE]">{lastResult.jitter_ms}ms</span>
+                <span className="text-[var(--text-muted)] block">Loss</span>
+                <span
+                  className={`text-[14px] font-semibold ${
+                    lastResult.packet_loss_pct === 0 ? 'text-[var(--ok)]' : 'text-[var(--danger)]'
+                  }`}
+                >
+                  {formatPercent(lastResult.packet_loss_pct)}
+                </span>
               </div>
               <div>
-                <span className="text-[#647C96] block">Duration</span>
-                <span className="text-sm font-bold text-[#EAF3FF]">{lastResult.duration_ms}ms</span>
+                <span className="text-[var(--text-muted)] block">Jitter</span>
+                <span className="text-[14px] font-semibold text-[var(--accent)]">
+                  {formatJitterMs(lastResult.jitter_ms)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[var(--text-muted)] block">Duration</span>
+                <span className="text-[14px] font-semibold text-[var(--text)]">
+                  {formatLatencyMs(lastResult.duration_ms)}
+                </span>
               </div>
             </div>
           )}

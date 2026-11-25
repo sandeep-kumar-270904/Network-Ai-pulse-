@@ -1,7 +1,25 @@
 export type StatusLevel = 'healthy' | 'warning' | 'critical' | 'offline' | 'unknown';
 
+export type GlobalHealthLevel = 'healthy' | 'degraded' | 'critical';
+
+export interface DatabaseInfo {
+  engine: string;
+  path: string;
+  status: string;
+}
+
+export interface ProbeHealthInfo {
+  status: GlobalHealthLevel;
+  reason: string;
+  recent_total: number;
+  recent_passed: number;
+  recent_failed: number;
+  gateway_latency_ms?: number | null;
+}
+
 export interface HealthResponse {
   status: string;
+  overall_status?: GlobalHealthLevel;
   application?: string;
   service?: string;
   version: string;
@@ -11,6 +29,8 @@ export interface HealthResponse {
   timestamp?: string;
   system?: any;
   services?: Record<string, string>;
+  database_info?: DatabaseInfo;
+  probe_health?: ProbeHealthInfo;
 }
 
 export interface SystemInfo {

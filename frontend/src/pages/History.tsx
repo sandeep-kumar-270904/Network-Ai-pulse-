@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { History, Database, Search, FileText, Calendar, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { History, Database, RefreshCw } from 'lucide-react';
 import { fetchDiagnosticHistory } from '../services/api';
+import {
+  formatJitterMs,
+  formatLatencyMs,
+  formatPercent,
+  formatRelativeTime,
+  formatTimestampUtc,
+} from '../utils/formatters';
 
 export const TestHistory: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
@@ -44,9 +51,9 @@ export const TestHistory: React.FC = () => {
                   <th className="py-2.5 px-4">Timestamp (UTC)</th>
                   <th className="py-2.5 px-4">Target Host</th>
                   <th className="py-2.5 px-4">Resolved IP</th>
-                  <th className="py-2.5 px-4">Avg RTT</th>
-                  <th className="py-2.5 px-4">Loss %</th>
-                  <th className="py-2.5 px-4">Jitter</th>
+                  <th className="py-2.5 px-4 text-right">Avg RTT</th>
+                  <th className="py-2.5 px-4 text-right">Loss</th>
+                  <th className="py-2.5 px-4 text-right">Jitter</th>
                   <th className="py-2.5 px-4">Status</th>
                 </tr>
               </thead>
@@ -54,19 +61,26 @@ export const TestHistory: React.FC = () => {
                 {records.map((r) => (
                   <tr key={r.id} className="hover:bg-[#13243A]/40 transition-colors">
                     <td className="py-3 px-4 text-[#22D3EE] font-semibold">{r.id}</td>
-                    <td className="py-3 px-4 text-[#647C96]">{r.timestamp?.substring(0, 19).replace('T', ' ')}</td>
+                    <td
+                      className="py-3 px-4 text-[#91A7C0] whitespace-nowrap"
+                      title={formatRelativeTime(r.timestamp)}
+                    >
+                      {formatTimestampUtc(r.timestamp)}
+                    </td>
                     <td className="py-3 px-4 text-[#EAF3FF] font-medium">{r.target}</td>
                     <td className="py-3 px-4 text-[#91A7C0]">{r.resolved_ip || r.target}</td>
-                    <td className="py-3 px-4 text-[#00D69A]">
-                      {r.avg_rtt_ms !== null ? `${r.avg_rtt_ms}ms` : 'N/A'}
+                    <td className="py-3 px-4 text-right text-[#00D69A]">
+                      {r.status === 'passed' ? formatLatencyMs(r.avg_rtt_ms) : 'No data'}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 text-right">
                       <span className={r.packet_loss_pct === 0 ? 'text-[#00D69A]' : 'text-[#FF475F]'}>
-                        {r.packet_loss_pct}%
+                        {formatPercent(r.packet_loss_pct)}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-[#22D3EE]">
-                      {r.jitter_ms !== null ? `${r.jitter_ms}ms` : '0.0ms'}
+                    <td className="py-3 px-4 text-right text-[#22D3EE]">
+                      {r.status === 'passed' && r.avg_rtt_ms !== null
+                        ? formatJitterMs(r.jitter_ms)
+                        : 'No data'}
                     </td>
                     <td className="py-3 px-4">
                       <span

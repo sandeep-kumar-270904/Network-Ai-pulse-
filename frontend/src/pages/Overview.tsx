@@ -8,6 +8,8 @@ import { TopologyGraph } from '../components/topology/TopologyGraph';
 import { InventoryTable } from '../components/inventory/InventoryTable';
 import { fetchAnalyticsSummary, fetchInventoryNodes } from '../services/api';
 import { HealthResponse } from '../types';
+import { TimeRangeOption } from '../components/layout/TopBar';
+import { formatLatencyMs, formatPercent } from '../utils/formatters';
 
 interface OverviewProps {
   backendOnline: boolean;
@@ -15,6 +17,7 @@ interface OverviewProps {
   health: HealthResponse | null;
   system: any | null;
   networkEnv: any | null;
+  timeRange?: TimeRangeOption;
 }
 
 export const Overview: React.FC<OverviewProps> = ({
@@ -23,6 +26,7 @@ export const Overview: React.FC<OverviewProps> = ({
   health,
   system,
   networkEnv,
+  timeRange = '1h',
 }) => {
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [nodeCount, setNodeCount] = useState<number>(0);
@@ -31,7 +35,7 @@ export const Overview: React.FC<OverviewProps> = ({
     let active = true;
     const load = async () => {
       const [anaRes, invRes] = await Promise.all([
-        fetchAnalyticsSummary(30),
+        fetchAnalyticsSummary(timeRange, 500),
         fetchInventoryNodes(),
       ]);
       if (!active) return;
@@ -44,26 +48,36 @@ export const Overview: React.FC<OverviewProps> = ({
       active = false;
       clearInterval(timer);
     };
-  }, [backendOnline]);
+  }, [backendOnline, timeRange]);
 
   const sysInfo = system?.system || health?.system;
-  const memoryUsedPercent = sysInfo?.memory_used_percent ?? 0;
-  const cpuCount = sysInfo?.cpu_count_logical ?? 1;
-  const defaultGw = networkEnv?.default_gateway || '192.168.1.1';
-  const passRate = analytics?.total_tests > 0 ? analytics.success_rate_pct : 100.0;
+  const memoryUsedPercent = sysInfo?.memory_used_percent ?? null;
+  const cpuCount = sysInfo?.cpu_count_logical ?? null;
+  const defaultGw = networkEnv?.default_gateway || 'No data';
+  const passRate: number | null = analytics?.pass_rate_pct ?? null;
+  const windowLabel: string = analytics?.window_label || `Last ${timeRange}`;
 
   const seriesData = analytics?.series?.timestamps?.length
     ? {
         latency: {
           timestamps: analytics.series.timestamps,
+          isoTimestamps: analytics.series.iso_timestamps,
+          statuses: analytics.series.statuses,
+          targets: analytics.series.targets,
           values: analytics.series.latency,
         },
         jitter: {
           timestamps: analytics.series.timestamps,
+          isoTimestamps: analytics.series.iso_timestamps,
+          statuses: analytics.series.statuses,
+          targets: analytics.series.targets,
           values: analytics.series.jitter,
         },
         loss: {
           timestamps: analytics.series.timestamps,
+          isoTimestamps: analytics.series.iso_timestamps,
+          statuses: analytics.series.statuses,
+          targets: analytics.series.targets,
           values: analytics.series.loss,
         },
       }
@@ -75,49 +89,79 @@ export const Overview: React.FC<OverviewProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           label="Backend API Latency"
-          value={backendOnline ? `${gatewayLatencyMs ?? 1}` : 'OFFLINE'}
-          unit={backendOnline ? 'ms' : ''}
+          value={
+            backendOnline
+              ? gatewayLatencyMs !== undefined
+                ? formatLatencyMs(gatewayLatencyMs, false)
+                : 'No data'
+              : 'Offline'
+          }
+          unit={backendOnline && gatewayLatencyMs !== undefined ? 'ms' : ''}
           subtext={backendOnline ? `Gateway: ${defaultGw}` : 'Service unreachable'}
           icon={Radio}
-          status={backendOnline ? 'nominal' : 'critical'}
+          status={
+            !backendOnline
+              ? 'critical'
+              : gatewayLatencyMs !== undefined && gatewayLatencyMs > 150
+              ? 'warning'
+              : 'nominal'
+          }
         />
 
         <KpiCard
           label="Active Network Nodes"
-          value={`${nodeCount || (networkEnv?.arp_neighbors?.length ? networkEnv.arp_neighbors.length + 1 : 2)}`}
-          unit="discovered"
+          value={
+            nodeCount > 0
+              ? `${nodeCount}`
+              : networkEnv?.arp_neighbors?.length
+              ? `${networkEnv.arp_neighbors.length + 1}`
+              : 'No data'
+          }
+          unit={nodeCount > 0 || networkEnv?.arp_neighbors?.length ? 'discovered' : ''}
           subtext={`Host + Gateway + ARP LAN peers`}
           icon={Server}
           status="neutral"
         />
 
         <KpiCard
-          label="Probe Pass Rate"
-          value={`${passRate}`}
-          unit="%"
+          label={`Probe Pass Rate (${windowLabel})`}
+          value={passRate !== null ? formatPercent(passRate, false) : 'No data'}
+          unit={passRate !== null ? '%' : ''}
           subtext={
             analytics?.total_tests > 0
-              ? `Across ${analytics.total_tests} recorded probes`
-              : 'Ready for baseline probes'
+              ? `Across ${analytics.total_tests} probes (${analytics.outage_count ?? 0} failed)`
+              : `No probes recorded in ${windowLabel}`
           }
           icon={Activity}
-          status={passRate >= 95 ? 'nominal' : 'warning'}
+          status={
+            passRate === null
+              ? 'neutral'
+              : passRate >= 95
+              ? 'nominal'
+              : passRate >= 70
+              ? 'warning'
+              : 'critical'
+          }
         />
 
         <KpiCard
           label="Host RAM Utilization"
-          value={memoryUsedPercent !== null ? `${Number(memoryUsedPercent).toFixed(1)}` : 'N/A'}
-          unit="%"
-          subtext={`${cpuCount} Logical CPU Cores active`}
+          value={memoryUsedPercent !== null ? `${Number(memoryUsedPercent).toFixed(1)}` : 'No data'}
+          unit={memoryUsedPercent !== null ? '%' : ''}
+          subtext={cpuCount !== null ? `${cpuCount} logical CPU cores` : 'CPU info unavailable'}
           icon={Shield}
-          status={memoryUsedPercent > 85 ? 'warning' : 'nominal'}
+          status={memoryUsedPercent !== null && memoryUsedPercent > 85 ? 'warning' : 'nominal'}
         />
       </div>
 
       {/* Operations Telemetry Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <PerformanceChart seriesData={seriesData} />
+          <PerformanceChart
+            windowLabel={windowLabel}
+            outages={analytics?.outages || []}
+            seriesData={seriesData}
+          />
         </div>
         <div className="space-y-6">
           <StatusPanel

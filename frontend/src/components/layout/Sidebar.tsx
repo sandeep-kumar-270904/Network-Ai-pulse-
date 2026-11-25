@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Tooltip } from '../ui/Tooltip';
 import { StatusChip } from '../ui/StatusChip';
+import { GlobalHealthLevel } from '../../types';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -33,6 +34,8 @@ interface SidebarProps {
   onCloseMobile: () => void;
   onOpenPalette: () => void;
   backendOnline: boolean;
+  globalHealth?: GlobalHealthLevel;
+  globalHealthReason?: string;
   version?: string;
 }
 
@@ -99,6 +102,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCloseMobile,
   onOpenPalette,
   backendOnline,
+  globalHealth = 'healthy',
+  globalHealthReason = 'All recent probes passed.',
   version = 'v1.0.0',
 }) => {
   const location = useLocation();
@@ -339,33 +344,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Footer */}
         <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--surface-1)] shrink-0">
           {!isIconRail ? (
-            <div className="flex items-center justify-between gap-2 text-[12px] leading-4">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  aria-hidden="true"
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    backendOnline
-                      ? 'bg-[var(--ok)]'
-                      : 'bg-[var(--danger)] np-pulse-soft'
-                  }`}
-                />
-                <span className="font-medium text-[var(--text-secondary)] truncate">
-                  {backendOnline ? 'Core online' : 'Core offline'}
+            <Tooltip content={globalHealthReason} side="right">
+              <div className="flex items-center justify-between gap-2 text-[12px] leading-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    aria-hidden="true"
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      !backendOnline || globalHealth === 'critical'
+                        ? 'bg-[var(--danger)] np-pulse-soft'
+                        : globalHealth === 'degraded'
+                        ? 'bg-[var(--warn)] np-pulse-soft'
+                        : 'bg-[var(--ok)]'
+                    }`}
+                  />
+                  <span className="font-medium text-[var(--text-secondary)] truncate">
+                    {!backendOnline
+                      ? 'Core offline'
+                      : globalHealth === 'critical'
+                      ? 'Critical'
+                      : globalHealth === 'degraded'
+                      ? 'Degraded'
+                      : 'Healthy'}
+                  </span>
+                </div>
+                <span className="font-mono text-[12px] text-[var(--text-muted)] shrink-0">
+                  {version}
                 </span>
               </div>
-              <span className="font-mono text-[12px] text-[var(--text-muted)] shrink-0">
-                {version}
-              </span>
-            </div>
+            </Tooltip>
           ) : (
             <div className="flex justify-center">
-              <Tooltip content={backendOnline ? `Core online · ${version}` : 'Core offline'} side="right">
+              <Tooltip
+                content={
+                  !backendOnline
+                    ? 'Core offline'
+                    : `${globalHealth === 'critical' ? 'Critical' : globalHealth === 'degraded' ? 'Degraded' : 'Healthy'} · ${version} — ${globalHealthReason}`
+                }
+                side="right"
+              >
                 <span
-                  aria-label={backendOnline ? 'Core online' : 'Core offline'}
+                  aria-label={!backendOnline ? 'Core offline' : globalHealth}
                   className={`w-2 h-2 rounded-full ${
-                    backendOnline
-                      ? 'bg-[var(--ok)]'
-                      : 'bg-[var(--danger)] np-pulse-soft'
+                    !backendOnline || globalHealth === 'critical'
+                      ? 'bg-[var(--danger)] np-pulse-soft'
+                      : globalHealth === 'degraded'
+                      ? 'bg-[var(--warn)] np-pulse-soft'
+                      : 'bg-[var(--ok)]'
                   }`}
                 />
               </Tooltip>

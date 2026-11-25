@@ -4,6 +4,7 @@ import { StatusChip, StatusTone } from '../ui/StatusChip';
 import { Tooltip } from '../ui/Tooltip';
 import { ThemeToggle, ThemeMode } from '../ui/ThemeToggle';
 import { Select } from '../ui/Select';
+import { GlobalHealthLevel } from '../../types';
 
 export type TimeRangeOption = '15m' | '1h' | '6h' | '24h' | '7d';
 
@@ -13,6 +14,8 @@ interface TopBarProps {
   gatewayUrl: string;
   gatewayLatencyMs?: number;
   backendOnline: boolean;
+  globalHealth: GlobalHealthLevel;
+  globalHealthReason?: string;
   lastSyncAt: Date | null;
   pollingSec: number;
   timeRange: TimeRangeOption;
@@ -38,6 +41,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   gatewayUrl,
   gatewayLatencyMs,
   backendOnline,
+  globalHealth,
+  globalHealthReason = 'All recent probes passed.',
   lastSyncAt,
   pollingSec,
   timeRange,
@@ -69,19 +74,28 @@ export const TopBar: React.FC<TopBarProps> = ({
       ? `Updated ${ageSec}s ago`
       : `Updated ${Math.round(ageSec / 60)}m ago`;
 
-  const gatewayTone: StatusTone = !backendOnline
-    ? 'danger'
+  const gatewayTone: StatusTone =
+    !backendOnline || globalHealth === 'critical'
+      ? 'danger'
+      : globalHealth === 'degraded' || (gatewayLatencyMs !== undefined && gatewayLatencyMs > 150)
+      ? 'warn'
+      : 'ok';
+
+  const statusText = !backendOnline
+    ? 'Offline'
+    : globalHealth === 'critical'
+    ? 'Critical'
+    : globalHealth === 'degraded'
+    ? 'Degraded'
     : gatewayLatencyMs !== undefined && gatewayLatencyMs > 150
-    ? 'warn'
-    : 'ok';
+    ? 'Slow'
+    : 'Healthy';
 
   const gatewayLabel = !backendOnline
     ? 'Offline'
     : gatewayLatencyMs !== undefined
-    ? gatewayLatencyMs > 150
-      ? `Slow · ${gatewayLatencyMs} ms`
-      : `Healthy · ${gatewayLatencyMs} ms`
-    : 'Healthy';
+    ? `${statusText} · ${gatewayLatencyMs} ms`
+    : statusText;
 
   return (
     <header className="h-16 sticky top-0 z-20 bg-[var(--surface-backdrop)] backdrop-blur-sm border-b border-[var(--border)] px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3">
@@ -105,13 +119,13 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Right: Desktop Controls (>=1024px) */}
       <div className="hidden lg:flex items-center gap-2 shrink-0">
-        <Tooltip content={`Gateway: ${gatewayUrl}`} side="bottom">
+        <Tooltip content={`Gateway: ${gatewayUrl} — ${globalHealthReason}`} side="bottom">
           <div className="inline-flex">
             <StatusChip
               size="md"
               tone={gatewayTone}
               label={gatewayLabel}
-              pulseWhenLiveOrDegraded={!backendOnline}
+              pulseWhenLiveOrDegraded={!backendOnline || globalHealth !== 'healthy'}
               className="np-mono-val"
             />
           </div>
@@ -175,9 +189,9 @@ export const TopBar: React.FC<TopBarProps> = ({
         >
           <StatusChip
             size="sm"
-            tone={isStale && backendOnline ? 'warn' : gatewayTone}
-            label={backendOnline ? (gatewayLatencyMs !== undefined ? `${gatewayLatencyMs} ms` : 'Online') : 'Offline'}
-            pulseWhenLiveOrDegraded={!backendOnline}
+            tone={isStale && backendOnline && gatewayTone === 'ok' ? 'warn' : gatewayTone}
+            label={backendOnline ? (gatewayLatencyMs !== undefined ? `${statusText} · ${gatewayLatencyMs} ms` : statusText) : 'Offline'}
+            pulseWhenLiveOrDegraded={!backendOnline || globalHealth !== 'healthy'}
           />
         </button>
 
