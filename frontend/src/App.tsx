@@ -181,6 +181,7 @@ const AppLayout: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
@@ -434,18 +435,19 @@ const AppLayout: React.FC = () => {
                   system={systemData}
                   networkEnv={networkEnvData}
                   timeRange={timeRange}
+                  theme={theme}
                 />
               }
             />
             <Route path="/diagnostics" element={<Diagnostics />} />
-            <Route path="/topology" element={<Topology />} />
+            <Route path="/topology" element={<Topology theme={theme} timeRange={timeRange} />} />
             <Route path="/inventory" element={<Inventory networkEnv={networkEnvData} />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/automation" element={<Automation />} />
             <Route path="/ai-analysis" element={<AIAnalysis />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/history" element={<TestHistory />} />
-            <Route path="/analytics" element={<Analytics timeRange={timeRange} />} />
+            <Route path="/analytics" element={<Analytics timeRange={timeRange} theme={theme} />} />
             <Route path="/reports" element={<Reports />} />
             <Route
               path="/system"

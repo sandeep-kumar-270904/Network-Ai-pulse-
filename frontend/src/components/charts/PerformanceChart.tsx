@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { Activity, Sliders, AlertTriangle } from 'lucide-react';
+import { Activity, Sliders, AlertTriangle, ArrowUpRight } from 'lucide-react';
 import {
   formatChartTimeUtc,
   formatJitterMs,
@@ -9,6 +9,7 @@ import {
   formatThroughputMbps,
   formatTimestampUtc,
 } from '../../utils/formatters';
+import { ThemeMode } from '../ui/ThemeToggle';
 
 interface MetricSeries {
   timestamps: string[];
@@ -30,6 +31,8 @@ interface OutagePoint {
 interface PerformanceChartProps {
   windowLabel?: string;
   outages?: OutagePoint[];
+  theme?: ThemeMode;
+  onDrillDown?: () => void;
   seriesData?: {
     latency?: MetricSeries;
     jitter?: MetricSeries;
@@ -41,15 +44,52 @@ interface PerformanceChartProps {
 export const PerformanceChart: React.FC<PerformanceChartProps> = ({
   windowLabel = 'Last 1h',
   outages = [],
+  theme = 'dark',
+  onDrillDown,
   seriesData,
 }) => {
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'jitter' | 'loss' | 'throughput'>('latency');
 
+  const isLight = theme === 'light';
+  const palette = isLight
+    ? {
+        axisLabel: '#526077',
+        axisLine: '#c1cce0',
+        splitLine: '#dce3ee',
+        tooltipBg: '#ffffff',
+        tooltipBorder: '#c1cce0',
+        tooltipText: '#0f172a',
+        tooltipSub: '#526077',
+        outageBand: 'rgba(185, 28, 28, 0.12)',
+        outageColor: '#b91c1c',
+        outageLabel: '#991b1b',
+        latency: '#155e75',
+        jitter: '#1d4ed8',
+        loss: '#b91c1c',
+        throughput: '#065f46',
+      }
+    : {
+        axisLabel: '#8d9bb5',
+        axisLine: '#303d59',
+        splitLine: '#20293d',
+        tooltipBg: '#10151f',
+        tooltipBorder: '#303d59',
+        tooltipText: '#edf2fb',
+        tooltipSub: '#8d9bb5',
+        outageBand: 'rgba(248, 113, 113, 0.16)',
+        outageColor: '#f87171',
+        outageLabel: '#fca5a5',
+        latency: '#22d3ee',
+        jitter: '#60a5fa',
+        loss: '#f87171',
+        throughput: '#34d399',
+      };
+
   const metricMeta = {
-    latency: { label: 'Round-trip latency', unit: 'ms', color: '#22D3EE' },
-    jitter: { label: 'Packet jitter', unit: 'ms', color: '#3B82F6' },
-    loss: { label: 'Packet loss', unit: '%', color: '#EF4444' },
-    throughput: { label: 'Throughput', unit: 'Mbps', color: '#10B981' },
+    latency: { label: 'Round-trip latency', unit: 'ms', color: palette.latency },
+    jitter: { label: 'Packet jitter', unit: 'ms', color: palette.jitter },
+    loss: { label: 'Packet loss', unit: '%', color: palette.loss },
+    throughput: { label: 'Throughput', unit: 'Mbps', color: palette.throughput },
   }[selectedMetric];
 
   const currentSeries = seriesData?.[selectedMetric];
@@ -76,7 +116,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
           {
             name: 'Outage',
             xAxis: startIdx,
-            itemStyle: { color: 'rgba(239, 68, 68, 0.16)' },
+            itemStyle: { color: palette.outageBand },
           },
           { xAxis: endIdx },
         ];
@@ -86,29 +126,30 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
   const outageMarkLines: any[] = showOutageMarkers
     ? outages.map((o) => ({
         xAxis: o.index,
-        lineStyle: { color: '#EF4444', type: 'dashed', width: 1.5 },
+        lineStyle: { color: palette.outageColor, type: 'dashed', width: 1.5 },
         label: { show: false },
       }))
     : [];
 
-  let lastLabeledIdx = -10;
+  const labelMinGap = Math.max(7, Math.ceil(xLabels.length / 4));
+  let lastLabeledIdx = -100;
   const outageMarkPoints: any[] = showOutageMarkers
     ? outages.map((o) => {
-        const showLabel = o.index - lastLabeledIdx >= 5;
+        const showLabel = o.index - lastLabeledIdx >= labelMinGap;
         if (showLabel) lastLabeledIdx = o.index;
         return {
           name: 'Probe failed',
           coord: [o.index, 0],
           value: 'Outage',
-          itemStyle: { color: '#EF4444' },
+          itemStyle: { color: palette.outageColor },
           symbol: 'triangle',
           symbolSize: 10,
           label: {
             show: showLabel,
             formatter: 'Outage',
             position: 'top',
-            color: '#FCA5A5',
-            fontSize: 10,
+            color: palette.outageLabel,
+            fontSize: 11,
             fontFamily: 'JetBrains Mono',
           },
         };
@@ -119,9 +160,10 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#0F172A',
-      borderColor: '#334155',
-      textStyle: { color: '#F1F5F9', fontFamily: 'JetBrains Mono', fontSize: 12 },
+      axisPointer: { type: 'cross' },
+      backgroundColor: palette.tooltipBg,
+      borderColor: palette.tooltipBorder,
+      textStyle: { color: palette.tooltipText, fontFamily: 'JetBrains Mono', fontSize: 12 },
       formatter: (params: any[]) => {
         if (!params || !params.length) return '';
         const item = params[0];
@@ -133,9 +175,9 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
 
         return [
           `<div style="font-weight:600;margin-bottom:4px;">${fullUtc}</div>`,
-          `<div style="color:#94A3B8;margin-bottom:4px;">Target: ${targetName}</div>`,
+          `<div style="color:${palette.tooltipSub};margin-bottom:4px;">Target: ${targetName}</div>`,
           isOutage && selectedMetric !== 'loss'
-            ? `<div style="color:#F87171;font-weight:600;">Status: Probe failed (Outage · gap)</div>`
+            ? `<div style="color:${palette.outageColor};font-weight:600;">Status: Probe failed (Outage · gap)</div>`
             : `<div style="color:${metricMeta.color};font-weight:600;">${metricMeta.label}: ${formatMetricValue(rawVal)}</div>`,
         ].join('');
       },
@@ -143,7 +185,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
     grid: {
       top: '18%',
       left: '3%',
-      right: '4%',
+      right: '8%',
       bottom: '10%',
       containLabel: true,
     },
@@ -151,17 +193,24 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
       type: 'category',
       boundaryGap: true,
       data: xLabels,
-      axisLine: { lineStyle: { color: '#334155' } },
-      axisLabel: { color: '#94A3B8', fontFamily: 'JetBrains Mono', fontSize: 10 },
+      axisLine: { lineStyle: { color: palette.axisLine } },
+      axisLabel: {
+        color: palette.axisLabel,
+        fontFamily: 'JetBrains Mono',
+        fontSize: 12,
+        hideOverlap: true,
+        alignMinLabel: 'left',
+        alignMaxLabel: 'right',
+      },
       splitLine: { show: false },
     },
     yAxis: {
       type: 'value',
       name: metricMeta.unit,
-      nameTextStyle: { color: '#94A3B8', fontFamily: 'JetBrains Mono', fontSize: 10 },
+      nameTextStyle: { color: palette.axisLabel, fontFamily: 'JetBrains Mono', fontSize: 12 },
       axisLine: { show: false },
-      axisLabel: { color: '#94A3B8', fontFamily: 'JetBrains Mono', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#1E293B', type: 'dashed' } },
+      axisLabel: { color: palette.axisLabel, fontFamily: 'JetBrains Mono', fontSize: 12 },
+      splitLine: { lineStyle: { color: palette.splitLine, type: 'dashed' } },
     },
     series: [
       {
@@ -173,7 +222,9 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
         symbolSize: 5,
         lineStyle: { width: 2, color: metricMeta.color },
         itemStyle: { color: metricMeta.color },
-        markArea: outageMarkAreas.length ? { silent: true, data: outageMarkAreas } : undefined,
+        markArea: outageMarkAreas.length
+          ? { silent: true, label: { show: false }, data: outageMarkAreas }
+          : undefined,
         markLine: outageMarkLines.length ? { symbol: ['none', 'none'], silent: true, data: outageMarkLines } : undefined,
         markPoint: outageMarkPoints.length ? { data: outageMarkPoints } : undefined,
         data: hasData ? currentSeries!.values : [],
@@ -184,35 +235,46 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
   return (
     <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[var(--border)]">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Activity className="w-4 h-4 text-[var(--accent)]" aria-hidden="true" />
           <h3 className="text-[14px] font-semibold text-[var(--text)]">
             Telemetry time-series ({windowLabel})
           </h3>
           {outages.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-pill)] bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger)]/30 text-[11px] font-mono">
-              <AlertTriangle className="w-3 h-3" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[var(--radius-pill)] bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger)]/30 text-[12px] font-mono">
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
               <span>{outages.length} outage{outages.length === 1 ? '' : 's'}</span>
             </span>
           )}
         </div>
 
-        {/* Metric Selector Tabs */}
-        <div className="flex items-center gap-1 bg-[var(--surface-2)] p-1 rounded-[var(--radius-control)] border border-[var(--border)]">
-          {(['latency', 'jitter', 'loss', 'throughput'] as const).map((m) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 bg-[var(--surface-2)] p-1 rounded-[var(--radius-control)] border border-[var(--border)]">
+            {(['latency', 'jitter', 'loss', 'throughput'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setSelectedMetric(m)}
+                className={`px-2.5 py-1 text-[12px] font-mono capitalize rounded-[var(--radius-control)] transition-colors ${
+                  selectedMetric === m
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)] font-semibold border border-[var(--accent)]/30'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          {onDrillDown && (
             <button
-              key={m}
               type="button"
-              onClick={() => setSelectedMetric(m)}
-              className={`px-2.5 py-1 text-[12px] font-mono capitalize rounded-[var(--radius-control)] transition-colors ${
-                selectedMetric === m
-                  ? 'bg-[var(--accent-soft)] text-[var(--accent)] font-semibold border border-[var(--accent)]/30'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
-              }`}
+              onClick={onDrillDown}
+              className="h-9 px-3 rounded-[var(--radius-control)] text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] inline-flex items-center gap-1 transition-colors"
             >
-              {m}
+              <span>Deep dive</span>
+              <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
-          ))}
+          )}
         </div>
       </div>
 

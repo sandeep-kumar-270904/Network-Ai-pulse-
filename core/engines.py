@@ -587,6 +587,9 @@ def get_analytics_summary(window: str = "1h", limit: int = 500) -> Dict[str, Any
             "avg_jitter_ms": None,
             "avg_loss_pct": None,
             "outage_count": 0,
+            "failing_targets_count": 0,
+            "total_targets_count": 0,
+            "failing_since": None,
             "series": {
                 "timestamps": [],
                 "iso_timestamps": [],
@@ -654,20 +657,40 @@ def get_analytics_summary(window: str = "1h", limit: int = 500) -> Dict[str, Any
         target_map.setdefault(r["target"], []).append(r)
 
     per_target = []
+    failing_targets_count = 0
+    earliest_fail_ts: Optional[str] = None
     for t, items in target_map.items():
+        # items are ordered newest-first from SQL query
         t_rtts = [float(i["avg_rtt_ms"]) for i in items if i["avg_rtt_ms"] is not None and i["status"] == "passed"]
+        recent_rtts = [round(float(i["avg_rtt_ms"]), 1) for i in reversed(items[:15]) if i["avg_rtt_ms"] is not None and i["status"] == "passed"]
         t_jitters = [float(i["jitter_ms"]) for i in items if i["jitter_ms"] is not None and i["status"] == "passed"]
         t_losses = [float(i["packet_loss_pct"]) for i in items if i["packet_loss_pct"] is not None]
         t_passed = sum(1 for i in items if i["status"] == "passed")
+        t_failed = len(items) - t_passed
+        latest_status = "passed" if items[0]["status"] == "passed" else "failed"
+        t_last_fail = next((i["timestamp"] for i in items if i["status"] != "passed"), None)
+        is_failing = latest_status != "passed" or t_failed > 0
+        if is_failing:
+            failing_targets_count += 1
+            if t_last_fail and (earliest_fail_ts is None or t_last_fail < earliest_fail_ts):
+                earliest_fail_ts = t_last_fail
         per_target.append({
             "target": t,
             "runs": len(items),
             "passed_runs": t_passed,
+            "failed_runs": t_failed,
             "pass_rate_pct": round((t_passed / len(items)) * 100, 1),
             "avg_rtt_ms": round(sum(t_rtts) / len(t_rtts), 1) if t_rtts else None,
             "avg_jitter_ms": round(sum(t_jitters) / len(t_jitters), 2) if t_jitters else None,
             "avg_loss_pct": round(sum(t_losses) / len(t_losses), 1) if t_losses else None,
+            "recent_rtts": recent_rtts,
+            "latest_status": latest_status,
+            "failing": is_failing,
+            "last_failed_at": t_last_fail,
         })
+
+    # Problems first: failing/lowest pass rate at top
+    per_target.sort(key=lambda row: (0 if row["latest_status"] != "passed" else (1 if row["failed_runs"] > 0 else 2), row["pass_rate_pct"], row["target"]))
 
     return {
         "window": norm_window,
@@ -683,6 +706,9 @@ def get_analytics_summary(window: str = "1h", limit: int = 500) -> Dict[str, Any
         "avg_jitter_ms": round(sum(jitters) / len(jitters), 2) if jitters else None,
         "avg_loss_pct": round(sum(losses) / len(losses), 1) if losses else None,
         "outage_count": len(outages),
+        "failing_targets_count": failing_targets_count,
+        "total_targets_count": len(per_target),
+        "failing_since": earliest_fail_ts,
         "series": {
             "timestamps": timestamps,
             "iso_timestamps": iso_timestamps,
