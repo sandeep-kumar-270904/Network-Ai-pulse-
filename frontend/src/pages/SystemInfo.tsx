@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Server, HardDrive, Cpu, ArrowRight, Globe } from 'lucide-react';
 import { StatusChip } from '../components/ui/StatusChip';
 import { CopyButton } from '../components/ui/CopyButton';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { getStoredGatewayUrl } from '../services/api';
 import { formatPercent } from '../utils/formatters';
 
@@ -92,6 +94,27 @@ export const SystemInfoPage: React.FC<SystemInfoProps> = ({
 
   return (
     <div className="space-y-6">
+      {!system && backendOnline ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+          <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        </div>
+      ) : !system && !backendOnline ? (
+        <ErrorState
+          title="Host telemetry unavailable"
+          message={`Cannot query ${gatewayUrl}/api/system while the backend gateway is offline.`}
+        />
+      ) : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Group 1: Compute & Operating System */}
         <section className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">

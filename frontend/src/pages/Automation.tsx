@@ -27,6 +27,8 @@ import { TextInput } from '../components/ui/TextInput';
 import { Select } from '../components/ui/Select';
 import { CopyButton } from '../components/ui/CopyButton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
 import {
   formatLatencyMs,
@@ -72,6 +74,7 @@ export const Automation: React.FC = () => {
   const [jobs, setJobs] = useState<any[]>([]);
   const [historyRecords, setHistoryRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -92,6 +95,7 @@ export const Automation: React.FC = () => {
     ]);
     setJobs(jobsRes.jobs);
     setHistoryRecords(histRes.records);
+    setLoadError(jobsRes.error || histRes.error || null);
     setLoading(false);
   }, []);
 
@@ -293,8 +297,22 @@ export const Automation: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Schedules Table or Empty State */}
-      {jobs.length === 0 && !loading ? (
+      {/* Main Schedules Table, Loading, Error, or Empty State */}
+      {loadError && jobs.length === 0 ? (
+        <ErrorState
+          title="Unable to load automation schedules"
+          message={loadError}
+          onRetry={loadJobsAndHistory}
+          retrying={loading}
+        />
+      ) : loading && jobs.length === 0 ? (
+        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      ) : jobs.length === 0 ? (
         <div className="p-8 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">
           <EmptyState
             icon={Bot}

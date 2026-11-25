@@ -25,6 +25,8 @@ import { StatusChip } from '../components/ui/StatusChip';
 import { Select } from '../components/ui/Select';
 import { Dialog } from '../components/ui/Dialog';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
 import { formatPercent, formatRelativeTime, formatTimestampUtc } from '../utils/formatters';
 
@@ -158,6 +160,7 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
 
   // Snapshot Data State
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<{
     analytics: any;
     records: any[];
@@ -224,6 +227,7 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
       fetchDynamicTopology(),
     ]);
 
+    setLoadError(anaRes.error || histRes.error || invRes.error || null);
     setSnapshot({
       analytics: anaRes.analytics,
       records: histRes.records || [],
@@ -491,6 +495,15 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <ErrorState
+          title="Unable to refresh report dataset"
+          message={loadError}
+          onRetry={loadLiveSnapshot}
+          retrying={loading}
+        />
+      )}
+
       {/* Live Dataset Summary KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] flex items-center justify-between">
@@ -697,9 +710,18 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
             <StatusChip size="sm" tone="ok" label="Live data" />
           </div>
 
-          <pre className="p-4 rounded-[var(--radius-control)] bg-[var(--bg)] border border-[var(--border)] font-mono text-[12px] leading-5 text-[var(--text-secondary)] overflow-auto max-h-[420px]">
-            {previewLines}
-          </pre>
+          {loading && snapshot.records.length === 0 ? (
+            <div className="space-y-2.5 p-2">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-5/6" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          ) : (
+            <pre className="p-4 rounded-[var(--radius-control)] bg-[var(--bg)] border border-[var(--border)] font-mono text-[12px] leading-5 text-[var(--text-secondary)] overflow-auto max-h-[420px]">
+              {previewLines}
+            </pre>
+          )}
         </div>
       </div>
 
