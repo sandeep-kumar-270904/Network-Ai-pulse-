@@ -444,7 +444,7 @@ const AppLayout: React.FC = () => {
             <Route path="/inventory" element={<Inventory networkEnv={networkEnvData} />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/automation" element={<Automation />} />
-            <Route path="/ai-analysis" element={<AIAnalysis />} />
+            <Route path="/ai-analysis" element={<AIAnalysis theme={theme} />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/history" element={<TestHistory />} />
             <Route path="/analytics" element={<Analytics timeRange={timeRange} theme={theme} />} />

@@ -56,9 +56,18 @@ def _init_db() -> None:
                 level TEXT NOT NULL,
                 source TEXT NOT NULL,
                 message TEXT NOT NULL,
-                acknowledged INTEGER DEFAULT 0
+                acknowledged INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'open',
+                snoozed_until TEXT
             )
         """)
+
+        # Safe additive migration for existing SQLite databases
+        evt_cols = {row[1] for row in conn.execute("PRAGMA table_info(events)").fetchall()}
+        if "status" not in evt_cols:
+            conn.execute("ALTER TABLE events ADD COLUMN status TEXT DEFAULT 'open'")
+        if "snoozed_until" not in evt_cols:
+            conn.execute("ALTER TABLE events ADD COLUMN snoozed_until TEXT")
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS automation_jobs (
@@ -122,18 +131,20 @@ def get_database_info() -> Dict[str, str]:
 
 def log_event(level: str, source: str, message: str) -> Dict[str, Any]:
     """Persist an operational event or alert into SQLite."""
-    evt_id = f"EVT-{int(time.time() * 1000) % 1000000}"
+    import uuid
+
+    evt_id = f"EVT-{int(time.time() * 1000) % 1000000}-{uuid.uuid4().hex[:4]}"
     ts = _utc_now()
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
-                "INSERT INTO events (id, timestamp, level, source, message, acknowledged) VALUES (?, ?, ?, ?, ?, 0)",
+                "INSERT INTO events (id, timestamp, level, source, message, acknowledged, status) VALUES (?, ?, ?, ?, ?, 0, 'open')",
                 (evt_id, ts, level, source, message),
             )
             conn.commit()
     except Exception as e:
         print(f"Error logging event: {e}")
-    return {"id": evt_id, "timestamp": ts, "level": level, "source": source, "message": message, "acknowledged": 0}
+    return {"id": evt_id, "timestamp": ts, "level": level, "source": source, "message": message, "acknowledged": 0, "status": "open"}
 
 
 def get_default_gateway() -> Optional[Dict[str, str]]:

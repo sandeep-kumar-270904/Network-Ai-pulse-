@@ -180,7 +180,7 @@ export const executeTracerouteDiagnostic = async (
   }
 };
 
-export const fetchDiagnosticHistory = async (limit: number = 50): Promise<{ records: any[]; error: string | null }> => {
+export const fetchDiagnosticHistory = async (limit: number = 500): Promise<{ records: any[]; error: string | null }> => {
   try {
     const res = await apiClient.get(`/api/diagnostics/history?limit=${limit}`);
     return { records: res.data?.records || [], error: null };
@@ -280,7 +280,7 @@ export const deleteAutomationJob = async (jobId: string): Promise<boolean> => {
 };
 
 // Alerts & Events
-export const fetchAlerts = async (limit: number = 100): Promise<{ events: any[]; error: string | null }> => {
+export const fetchAlerts = async (limit: number = 500): Promise<{ events: any[]; error: string | null }> => {
   try {
     const res = await apiClient.get(`/api/alerts?limit=${limit}`);
     return { events: res.data?.events || [], error: null };
@@ -295,6 +295,39 @@ export const acknowledgeAlert = async (eventId: string): Promise<boolean> => {
     return true;
   } catch {
     return false;
+  }
+};
+
+export const updateAlertState = async (
+  eventId: string,
+  state: 'open' | 'acknowledged' | 'resolved',
+  snoozeMinutes?: number,
+): Promise<boolean> => {
+  try {
+    await apiClient.post(`/api/alerts/${encodeURIComponent(eventId)}/state`, {
+      state,
+      snooze_minutes: snoozeMinutes ?? null,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const bulkUpdateAlertState = async (
+  eventIds: string[],
+  state: 'open' | 'acknowledged' | 'resolved',
+  snoozeMinutes?: number,
+): Promise<number> => {
+  try {
+    const res = await apiClient.post('/api/alerts/bulk-state', {
+      event_ids: eventIds,
+      state,
+      snooze_minutes: snoozeMinutes ?? null,
+    });
+    return Number(res.data?.updated || 0);
+  } catch {
+    return 0;
   }
 };
 
@@ -320,9 +353,9 @@ export const fetchAnalyticsSummary = async (
   }
 };
 
-export const runAiAnomalyScan = async (): Promise<{ analysis: any | null; error: string | null }> => {
+export const runAiAnomalyScan = async (limit: number = 500): Promise<{ analysis: any | null; error: string | null }> => {
   try {
-    const res = await apiClient.post('/api/ai/analyze', {}, { timeout: 20000 });
+    const res = await apiClient.post(`/api/ai/analyze?limit=${limit}`, {}, { timeout: 20000 });
     return { analysis: res.data?.analysis || null, error: null };
   } catch (err: unknown) {
     return { analysis: null, error: extractAxiosError(err, 'AI anomaly scan failed') };

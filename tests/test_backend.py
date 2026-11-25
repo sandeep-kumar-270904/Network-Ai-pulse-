@@ -493,3 +493,113 @@ class TestPhase2DataIntegrity:
         res = ai_toggle_false_positive(tid, FalsePositiveRequest(false_positive=True, note="Unit test"))
         assert res["status"] == "ok"
         assert res["false_positive"] is True
+
+
+class TestPhase4ListScalabilityAndAlerts:
+    """Tests for Phase 4 alert lifecycle states, snooze, bulk updates, and 500+ row pagination queries."""
+
+    def test_alert_lifecycle_open_ack_resolve_snooze_and_bulk(self, tmp_path, monkeypatch):
+        import core.diagnostics as diag
+        import core.engines as eng
+        from backend.main import (
+            AlertStateRequest,
+            BulkAlertStateRequest,
+            bulk_set_alert_state,
+            list_alerts,
+            set_alert_state,
+        )
+
+        temp_db = tmp_path / "phase4_alerts.db"
+        monkeypatch.setattr(diag, "DB_PATH", temp_db)
+        monkeypatch.setattr(eng, "DB_PATH", temp_db)
+        diag._init_db()
+
+        id1 = diag.log_event("critical", "Probe", "First failure")["id"]
+        id2 = diag.log_event("warning", "Probe", "Second failure")["id"]
+        id3 = diag.log_event("info", "Probe", "Third notice")["id"]
+
+        res = list_alerts(limit=500)
+        by_id = {e["id"]: e for e in res["events"]}
+        assert by_id[id1]["state"] == "open"
+        assert by_id[id1]["acknowledged"] is False
+
+        # Acknowledge + snooze single alert
+        r_ack = set_alert_state(id1, AlertStateRequest(state="acknowledged", snooze_minutes=60))
+        assert r_ack["status"] == "ok"
+
+        # Bulk resolve id2 and id3
+        r_bulk = bulk_set_alert_state(BulkAlertStateRequest(event_ids=[id2, id3], state="resolved"))
+        assert r_bulk["status"] == "ok"
+        assert r_bulk["updated"] == 2
+
+        after = {e["id"]: e for e in list_alerts(limit=500)["events"]}
+        assert after[id1]["state"] == "acknowledged"
+        assert after[id1]["snoozed"] is True
+        assert after[id2]["state"] == "resolved"
+        assert after[id3]["state"] == "resolved"
+
+    def test_500_plus_rows_alerts_history_and_anomaly(self, tmp_path, monkeypatch):
+        import sqlite3
+        from datetime import datetime, timedelta, timezone
+        import core.diagnostics as diag
+        import core.engines as eng
+
+        temp_db = tmp_path / "phase4_scale.db"
+        monkeypatch.setattr(diag, "DB_PATH", temp_db)
+        monkeypatch.setattr(eng, "DB_PATH", temp_db)
+        diag._init_db()
+
+        now = datetime.now(timezone.utc)
+        with sqlite3.connect(temp_db) as conn:
+            hist_rows = []
+            evt_rows = []
+            for idx in range(520):
+                ts = (now - timedelta(seconds=idx)).isoformat()
+                failed = idx % 10 == 0
+                hist_rows.append((
+                    f"scale-{idx}",
+                    ts,
+                    "ping",
+                    "1.1.1.1" if not failed else "127.0.0.1:65432",
+                    "1.1.1.1" if not failed else "127.0.0.1",
+                    "failed" if failed else "passed",
+                    22.0,
+                    4,
+                    0 if failed else 4,
+                    100.0 if failed else 0.0,
+                    None if failed else 20.0,
+                    None if failed else 22.0 + (idx % 5),
+                    None if failed else 25.0,
+                    None if failed else 1.2,
+                    "Scale test row",
+                ))
+                evt_rows.append((
+                    f"evt-scale-{idx}",
+                    ts,
+                    "critical" if failed else "info",
+                    "ScaleTest",
+                    f"Repeated event #{idx % 4}",
+                    0,
+                    "open",
+                    None,
+                ))
+            conn.executemany(
+                """INSERT INTO test_history
+                (id, timestamp, test_type, target, resolved_ip, status, duration_ms, packets_sent, packets_received, packet_loss_pct, min_rtt_ms, avg_rtt_ms, max_rtt_ms, jitter_ms, summary)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                hist_rows,
+            )
+            conn.executemany(
+                "INSERT INTO events (id, timestamp, level, source, message, acknowledged, status, snoozed_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                evt_rows,
+            )
+            conn.commit()
+
+        assert len(diag.get_test_history(limit=600)) == 520
+        assert len(eng.get_events(limit=600)) == 520
+        analysis = eng.run_ai_anomaly_analysis(limit=600)
+        assert analysis["status"] == "completed"
+        assert analysis["samples_analyzed"] >= 450
+        inv = eng.get_inventory_nodes()
+        assert len(inv) >= 2
+        assert any("latency_ms" in n and "last_seen" in n for n in inv)

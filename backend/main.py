@@ -34,6 +34,7 @@ from core.diagnostics import (
 from core.engines import (
     acknowledge_event,
     add_inventory_node,
+    bulk_update_event_state,
     clear_events,
     compute_global_health,
     create_automation_job,
@@ -49,6 +50,7 @@ from core.engines import (
     set_anomaly_false_positive,
     tick_automation_scheduler,
     toggle_automation_job,
+    update_event_state,
 )
 
 # ---------------------------------------------------------------------------
@@ -406,7 +408,7 @@ def run_ping_diagnostic(req: PingRequest) -> Dict[str, Any]:
 
 
 @app.get("/api/diagnostics/history", tags=["Diagnostics"])
-def diagnostic_history(limit: int = 50) -> Dict[str, Any]:
+def diagnostic_history(limit: int = 500) -> Dict[str, Any]:
     """Return historical records of executed diagnostic probes."""
     return {
         "status": "ok",
@@ -658,8 +660,19 @@ def remove_automation_job(job_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Alerts & Events Routes
 # ---------------------------------------------------------------------------
+class AlertStateRequest(BaseModel):
+    state: str = "acknowledged"
+    snooze_minutes: Optional[int] = None
+
+
+class BulkAlertStateRequest(BaseModel):
+    event_ids: List[str]
+    state: str = "acknowledged"
+    snooze_minutes: Optional[int] = None
+
+
 @app.get("/api/alerts", tags=["Alerts"])
-def list_alerts(limit: int = 100) -> Dict[str, Any]:
+def list_alerts(limit: int = 500) -> Dict[str, Any]:
     return {"status": "ok", "timestamp": _utc_now(), "events": get_events(limit=limit)}
 
 
@@ -667,6 +680,22 @@ def list_alerts(limit: int = 100) -> Dict[str, Any]:
 def ack_alert(event_id: str) -> Dict[str, Any]:
     ok = acknowledge_event(event_id)
     return {"status": "ok" if ok else "not_found", "timestamp": _utc_now()}
+
+
+@app.post("/api/alerts/{event_id}/state", tags=["Alerts"])
+def set_alert_state(event_id: str, payload: AlertStateRequest) -> Dict[str, Any]:
+    ok = update_event_state(event_id, state=payload.state, snooze_minutes=payload.snooze_minutes)
+    return {"status": "ok" if ok else "not_found", "timestamp": _utc_now()}
+
+
+@app.post("/api/alerts/bulk-state", tags=["Alerts"])
+def bulk_set_alert_state(payload: BulkAlertStateRequest) -> Dict[str, Any]:
+    count = bulk_update_event_state(
+        payload.event_ids,
+        state=payload.state,
+        snooze_minutes=payload.snooze_minutes,
+    )
+    return {"status": "ok", "updated": count, "timestamp": _utc_now()}
 
 
 @app.delete("/api/alerts", tags=["Alerts"])
@@ -693,8 +722,8 @@ def analytics_summary(window: str = "1h", limit: int = 500) -> Dict[str, Any]:
 
 
 @app.post("/api/ai/analyze", tags=["AI Analysis"])
-def ai_anomaly_scan() -> Dict[str, Any]:
-    return {"status": "ok", "timestamp": _utc_now(), "analysis": run_ai_anomaly_analysis()}
+def ai_anomaly_scan(limit: int = 500) -> Dict[str, Any]:
+    return {"status": "ok", "timestamp": _utc_now(), "analysis": run_ai_anomaly_analysis(limit=limit)}
 
 
 @app.post("/api/ai/false-positive/{test_id}", tags=["AI Analysis"])

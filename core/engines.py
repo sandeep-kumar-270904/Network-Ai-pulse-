@@ -486,23 +486,84 @@ def tick_automation_scheduler() -> None:
 # ---------------------------------------------------------------------------
 # 3. Alerts & Events Engine
 # ---------------------------------------------------------------------------
-def get_events(limit: int = 100) -> List[Dict[str, Any]]:
+def get_events(limit: int = 500) -> List[Dict[str, Any]]:
     events: List[Dict[str, Any]] = []
+    now_iso = _utc_now()
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute("SELECT * FROM events ORDER BY timestamp DESC LIMIT ?", (limit,)).fetchall()
         for r in rows:
             d = dict(r)
-            d["acknowledged"] = bool(d["acknowledged"])
+            ack = bool(d.get("acknowledged"))
+            raw_state = d.get("status")
+            if raw_state in ("open", "acknowledged", "resolved"):
+                state = raw_state
+            else:
+                state = "acknowledged" if ack else "open"
+            snoozed_until = d.get("snoozed_until")
+            is_snoozed = bool(snoozed_until and snoozed_until > now_iso)
+            d["acknowledged"] = ack or state in ("acknowledged", "resolved")
+            d["state"] = state
+            d["snoozed_until"] = snoozed_until
+            d["snoozed"] = is_snoozed
             events.append(d)
     return events
 
 
 def acknowledge_event(event_id: str) -> bool:
     with sqlite3.connect(DB_PATH) as conn:
-        cur = conn.execute("UPDATE events SET acknowledged = 1 WHERE id = ?", (event_id,))
+        cur = conn.execute(
+            "UPDATE events SET acknowledged = 1, status = 'acknowledged' WHERE id = ?",
+            (event_id,),
+        )
         conn.commit()
         return cur.rowcount > 0
+
+
+def update_event_state(
+    event_id: str,
+    state: str = "acknowledged",
+    snooze_minutes: Optional[int] = None,
+) -> bool:
+    """Update an alert lifecycle state (open | acknowledged | resolved) or snooze window."""
+    norm = state if state in ("open", "acknowledged", "resolved") else "acknowledged"
+    ack_int = 1 if norm in ("acknowledged", "resolved") else 0
+    snooze_iso: Optional[str] = None
+    if snooze_minutes is not None and snooze_minutes > 0:
+        snooze_iso = (datetime.now(timezone.utc) + timedelta(minutes=snooze_minutes)).isoformat()
+    with sqlite3.connect(DB_PATH) as conn:
+        if snooze_minutes == 0:
+            cur = conn.execute(
+                "UPDATE events SET acknowledged = ?, status = ?, snoozed_until = NULL WHERE id = ?",
+                (ack_int, norm, event_id),
+            )
+        elif snooze_iso is not None:
+            cur = conn.execute(
+                "UPDATE events SET acknowledged = ?, status = ?, snoozed_until = ? WHERE id = ?",
+                (ack_int, norm, snooze_iso, event_id),
+            )
+        else:
+            cur = conn.execute(
+                "UPDATE events SET acknowledged = ?, status = ? WHERE id = ?",
+                (ack_int, norm, event_id),
+            )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def bulk_update_event_state(
+    event_ids: List[str],
+    state: str = "acknowledged",
+    snooze_minutes: Optional[int] = None,
+) -> int:
+    """Apply lifecycle state or snooze updates across multiple alerts."""
+    if not event_ids:
+        return 0
+    updated = 0
+    for eid in event_ids:
+        if update_event_state(eid, state=state, snooze_minutes=snooze_minutes):
+            updated += 1
+    return updated
 
 
 def clear_events() -> None:
@@ -825,7 +886,7 @@ def set_anomaly_false_positive(test_id: str, false_positive: bool, note: str = "
     return True
 
 
-def run_ai_anomaly_analysis() -> Dict[str, Any]:
+def run_ai_anomaly_analysis(limit: int = 500) -> Dict[str, Any]:
     """
     Train and execute Scikit-learn IsolationForest + threshold checks over SQLite
     diagnostic history. Classifications, explanations, thresholds, confidence, and
@@ -834,7 +895,8 @@ def run_ai_anomaly_analysis() -> Dict[str, Any]:
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT * FROM test_history ORDER BY timestamp DESC LIMIT 100"
+            "SELECT * FROM test_history ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
         ).fetchall()
         fp_rows = conn.execute("SELECT test_id, marked_at, note FROM anomaly_feedback").fetchall()
 
@@ -1010,7 +1072,7 @@ def get_inventory_nodes() -> List[Dict[str, Any]]:
             "source": "discovered",
         })
 
-    # Add user-saved custom nodes from SQLite
+    # Add user-saved custom nodes from SQLite and enrich all nodes with latest telemetry
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute("SELECT * FROM inventory_nodes ORDER BY created_at DESC").fetchall()
@@ -1025,6 +1087,34 @@ def get_inventory_nodes() -> List[Dict[str, Any]]:
                 "mac": r["notes"] or "Registered",
                 "source": "custom",
             })
+
+        hist_rows = conn.execute(
+            "SELECT target, resolved_ip, status, avg_rtt_ms, timestamp FROM test_history ORDER BY timestamp DESC LIMIT 500"
+        ).fetchall()
+
+    latest_by_ip: Dict[str, Dict[str, Any]] = {}
+    for hr in hist_rows:
+        tgt = str(hr["target"])
+        bare = tgt.split(":")[0]
+        res_ip = str(hr["resolved_ip"] or "")
+        for key in (tgt, bare, res_ip):
+            if key and key not in latest_by_ip:
+                latest_by_ip[key] = dict(hr)
+
+    for node in nodes:
+        ip_key = str(node.get("ip", ""))
+        bare_ip = ip_key.split(":")[0]
+        hit = latest_by_ip.get(ip_key) or latest_by_ip.get(bare_ip)
+        if hit:
+            node["last_seen"] = hit["timestamp"]
+            node["latency_ms"] = round(float(hit["avg_rtt_ms"]), 1) if hit["avg_rtt_ms"] is not None else None
+            node["probe_status"] = hit["status"]
+            if hit["status"] != "passed":
+                node["status"] = "offline"
+        else:
+            node["last_seen"] = None
+            node["latency_ms"] = None
+            node["probe_status"] = None
 
     return nodes
 
