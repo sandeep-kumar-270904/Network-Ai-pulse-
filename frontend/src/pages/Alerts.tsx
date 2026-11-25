@@ -30,8 +30,11 @@ import { Dialog } from '../components/ui/Dialog';
 import { StatusChip, StatusTone } from '../components/ui/StatusChip';
 import { CopyButton } from '../components/ui/CopyButton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { useSavedViews, SavedView } from '../hooks/useSavedViews';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { exportToCsv, exportToJson } from '../utils/export';
 import { formatRelativeTime, formatTimestampUtc } from '../utils/formatters';
 
@@ -128,10 +131,13 @@ export const Alerts: React.FC = () => {
 
   const { views, saveView, deleteView } = useSavedViews<AlertsSavedState>('alerts');
   const { addToast } = useToast();
+  const { maskText } = useDemoMode();
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadAlerts = useCallback(async () => {
     setLoading(true);
-    const { events: list } = await fetchAlerts(1000);
+    const { events: list, error } = await fetchAlerts(1000);
+    setLoadError(error || null);
     setEvents(list);
     setLoading(false);
     try {
@@ -512,7 +518,7 @@ export const Alerts: React.FC = () => {
                               )}
                             </div>
                             <p className="text-[13px] text-[var(--text-secondary)] leading-5 break-words">
-                              {evt.message}
+                              {maskText(evt.message)}
                             </p>
                           </div>
                         </div>
@@ -625,6 +631,22 @@ export const Alerts: React.FC = () => {
               })}
             </tbody>
           </table>
+        </div>
+      ) : loadError && events.length === 0 ? (
+        <ErrorState
+          title="Unable to load alerts and events"
+          message={loadError}
+          why="The NetPulse gateway failed to return alert records from SQLite."
+          howToFix="Verify the gateway is running and check Settings -> Gateway URL, then click Retry."
+          onRetry={loadAlerts}
+          retrying={loading}
+        />
+      ) : loading && events.length === 0 ? (
+        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
         </div>
       ) : (
         <div className="p-8 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">

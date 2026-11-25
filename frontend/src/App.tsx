@@ -6,6 +6,8 @@ import { TopBar, TimeRangeOption } from './components/layout/TopBar';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { ToastProvider } from './components/ui/Toast';
 import { ThemeMode } from './components/ui/ThemeToggle';
+import { DemoModeProvider, useDemoMode } from './contexts/DemoModeContext';
+import { formatTimestampUtc } from './utils/formatters';
 import { Overview } from './pages/Overview';
 import { Diagnostics } from './pages/Diagnostics';
 import { Topology } from './pages/Topology';
@@ -216,9 +218,9 @@ const AppLayout: React.FC = () => {
 
   const pollTelemetry = useCallback(async () => {
     const healthRes = await fetchHealth();
-    setLastSyncAt(new Date());
 
     if (healthRes.data) {
+      setLastSyncAt(new Date());
       setBackendOnline(true);
       setGatewayLatencyMs(healthRes.latencyMs);
       setHealthData(healthRes.data);
@@ -280,6 +282,8 @@ const AppLayout: React.FC = () => {
     [handleManualRefresh]
   );
 
+  const { demoMode, toggleDemoMode, maskText } = useDemoMode();
+  const maskedGateway = maskText(gatewayUrl);
   const isSettingsPage = location.pathname === '/settings';
 
   const probeStatus = healthData?.probe_health?.status;
@@ -292,7 +296,7 @@ const AppLayout: React.FC = () => {
     : 'healthy';
 
   const globalHealthReason = !backendOnline
-    ? `Gateway unreachable at ${gatewayUrl}`
+    ? `Gateway unreachable at ${maskedGateway}`
     : healthData?.probe_health?.reason ||
       (gatewayLatencyMs !== undefined && gatewayLatencyMs > 150
         ? `Gateway latency elevated (${gatewayLatencyMs} ms)`
@@ -300,7 +304,10 @@ const AppLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen np-canvas text-[var(--text)] flex">
-      <a href="#main-content" className="np-skip-link">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-[var(--radius-control)] focus:bg-[var(--accent)] focus:text-[var(--accent-ink)] focus:text-[13px] focus:font-semibold focus:shadow-lg"
+      >
         Skip to main content
       </a>
 
@@ -324,7 +331,7 @@ const AppLayout: React.FC = () => {
         <TopBar
           breadcrumbSection={currentMeta.section}
           breadcrumbPage={currentMeta.page}
-          gatewayUrl={gatewayUrl}
+          gatewayUrl={maskedGateway}
           gatewayLatencyMs={gatewayLatencyMs}
           backendOnline={backendOnline}
           globalHealth={globalHealth}
@@ -338,26 +345,28 @@ const AppLayout: React.FC = () => {
           onOpenMobileMenu={() => setMobileOpen(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
+          demoMode={demoMode}
+          onToggleDemoMode={toggleDemoMode}
         />
 
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 w-full max-w-[1200px] mx-auto px-4 py-6 sm:px-6 lg:px-8 focus:outline-none"
+          className="flex-1 w-full max-w-[1200px] min-w-0 mx-auto px-4 py-6 sm:px-6 lg:px-8 focus:outline-none"
         >
           {!backendOnline && (
             <div
               role="alert"
               className="mb-6 p-4 rounded-[var(--radius-card)] bg-[var(--danger-soft)] border border-[var(--danger)]/35 flex flex-wrap items-center justify-between gap-3"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 min-w-0">
                 <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0 mt-1" aria-hidden="true" />
-                <div>
+                <div className="space-y-0.5 min-w-0">
                   <p className="text-[14px] font-semibold text-[var(--text)]">
-                    Backend gateway unreachable
+                    Gateway disconnected — {lastSyncAt ? `showing last known data from ${formatTimestampUtc(lastSyncAt)}` : 'no cached snapshot yet'}
                   </p>
                   <p className="text-[13px] text-[var(--text-secondary)]">
-                    Unable to reach <span className="font-mono">{gatewayUrl}</span>. Check that the service is running.
+                    <span className="font-mono">{maskedGateway}</span> did not respond. Verify the FastAPI service is running or update your Gateway URL in Settings.
                   </p>
                 </div>
               </div>
@@ -372,11 +381,11 @@ const AppLayout: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/diagnostics')}
+                  onClick={() => navigate('/settings')}
                   className="h-10 px-3 rounded-[var(--radius-control)] text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] inline-flex items-center gap-2"
                 >
                   <Activity className="w-4 h-4" />
-                  <span>View diagnostics</span>
+                  <span>Check settings</span>
                 </button>
               </div>
             </div>
@@ -486,6 +495,8 @@ const AppLayout: React.FC = () => {
         onSyncNow={handleManualRefresh}
         onToggleSidebar={toggleSidebar}
         onToggleTheme={toggleTheme}
+        demoMode={demoMode}
+        onToggleDemoMode={toggleDemoMode}
       />
     </div>
   );
@@ -493,11 +504,13 @@ const AppLayout: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <BrowserRouter>
-        <AppLayout />
-      </BrowserRouter>
-    </ToastProvider>
+    <DemoModeProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <AppLayout />
+        </BrowserRouter>
+      </ToastProvider>
+    </DemoModeProvider>
   );
 };
 

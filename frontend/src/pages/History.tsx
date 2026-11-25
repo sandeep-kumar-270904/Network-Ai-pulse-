@@ -20,8 +20,11 @@ import { SideDrawer } from '../components/ui/SideDrawer';
 import { StatusChip } from '../components/ui/StatusChip';
 import { CopyButton } from '../components/ui/CopyButton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { useSavedViews, SavedView } from '../hooks/useSavedViews';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { exportToCsv, exportToJson } from '../utils/export';
 import {
   formatJitterMs,
@@ -69,6 +72,7 @@ interface HistorySavedState {
 export const TestHistory: React.FC = () => {
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<LocalTimeFilter>('all');
@@ -81,10 +85,12 @@ export const TestHistory: React.FC = () => {
   const navigate = useNavigate();
   const { views, saveView, deleteView } = useSavedViews<HistorySavedState>('history');
   const { addToast } = useToast();
+  const { maskHost, maskIp, maskText } = useDemoMode();
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
-    const { records: data } = await fetchDiagnosticHistory(1000);
+    const { records: data, error } = await fetchDiagnosticHistory(1000);
+    setLoadError(error || null);
     setRecords(data);
     setIsLoading(false);
   }, []);
@@ -285,10 +291,10 @@ export const TestHistory: React.FC = () => {
                     isFailureGroup: false,
                   })
                 }
-                title={`${formatTimestampUtc(sample.timestamp)} · ${sample.target} · ${
+                title={`${formatTimestampUtc(sample.timestamp)} · ${maskHost(sample.target)} · ${
                   sample.status === 'passed' ? formatLatencyMs(sample.avg_rtt_ms) : 'Failed'
                 }`}
-                aria-label={`${sample.target} ${sample.status} at ${formatTimestampUtc(sample.timestamp)}`}
+                aria-label={`${maskHost(sample.target)} ${sample.status} at ${formatTimestampUtc(sample.timestamp)}`}
                 className={`flex-1 h-full min-w-[3px] rounded-[2px] transition-opacity hover:opacity-75 ${
                   sample.status === 'passed' ? 'bg-[var(--ok)]' : 'bg-[var(--danger)]'
                 }`}
@@ -371,9 +377,9 @@ export const TestHistory: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3 px-4 text-[var(--text)] font-medium">
-                        <div>{r.target}</div>
+                        <div>{maskHost(r.target)}</div>
                         {r.resolved_ip && r.resolved_ip !== r.target && (
-                          <div className="text-[var(--text-muted)]">{r.resolved_ip}</div>
+                          <div className="text-[var(--text-muted)]">{maskIp(r.resolved_ip)}</div>
                         )}
                       </td>
                       <td className="py-3 px-4 text-[var(--text-secondary)]">{r.test_type}</td>
@@ -430,7 +436,7 @@ export const TestHistory: React.FC = () => {
                           <td className="py-2 px-4 text-[var(--text-muted)] whitespace-nowrap">
                             {formatTimestampUtc(child.timestamp)}
                           </td>
-                          <td className="py-2 px-4 text-[var(--text-secondary)]">{child.target}</td>
+                          <td className="py-2 px-4 text-[var(--text-secondary)]">{maskHost(child.target)}</td>
                           <td className="py-2 px-4 text-[var(--text-muted)]">{child.test_type}</td>
                           <td className="py-2 px-4 text-right text-[var(--text-muted)]">No data</td>
                           <td className="py-2 px-4 text-right text-[var(--danger)]">
@@ -447,6 +453,22 @@ export const TestHistory: React.FC = () => {
               })}
             </tbody>
           </table>
+        </div>
+      ) : loadError && records.length === 0 ? (
+        <ErrorState
+          title="Unable to load diagnostic history"
+          message={loadError}
+          why="The NetPulse gateway failed to return SQLite probe history."
+          howToFix="Verify the gateway is running and check Settings -> Gateway URL, then click Retry."
+          onRetry={loadHistory}
+          retrying={isLoading}
+        />
+      ) : isLoading && records.length === 0 ? (
+        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
         </div>
       ) : (
         <div className="p-8 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">
@@ -473,7 +495,7 @@ export const TestHistory: React.FC = () => {
       <SideDrawer
         open={Boolean(activeGroup)}
         onClose={() => setActiveGroup(null)}
-        title={activeGroup?.lead.target || 'Diagnostic record'}
+        title={activeGroup?.lead.target ? maskHost(activeGroup.lead.target) : 'Diagnostic record'}
         description={
           activeGroup && activeGroup.count > 1
             ? `Failed ×${activeGroup.count} · First ${formatTimestampUtc(activeGroup.firstTimestamp)} · Last ${formatTimestampUtc(activeGroup.lastTimestamp)}`
@@ -534,7 +556,7 @@ export const TestHistory: React.FC = () => {
             {activeGroup.lead.summary && (
               <div className="p-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)]">
                 <div className="text-[12px] font-medium text-[var(--text-muted)] mb-1">Summary</div>
-                <p className="font-mono text-[12px] text-[var(--text)]">{activeGroup.lead.summary}</p>
+                <p className="font-mono text-[12px] text-[var(--text)]">{maskText(activeGroup.lead.summary)}</p>
               </div>
             )}
 

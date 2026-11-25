@@ -34,7 +34,10 @@ import { fetchDynamicTopology, fetchAnalyticsSummary } from '../../services/api'
 import { formatLatencyMs, formatPercent } from '../../utils/formatters';
 import { StatusChip, StatusTone } from '../ui/StatusChip';
 import { CopyButton } from '../ui/CopyButton';
+import { ErrorState } from '../ui/ErrorState';
+import { Skeleton } from '../ui/Skeleton';
 import { ThemeMode } from '../ui/ThemeToggle';
+import { useDemoMode } from '../../contexts/DemoModeContext';
 
 export type NodeDeviceRole = 'gateway' | 'switch' | 'server' | 'probe';
 export type NodeHealthStatus = 'online' | 'degraded' | 'offline';
@@ -88,10 +91,16 @@ const statusToTone = (status: NodeHealthStatus): { tone: StatusTone; label: stri
   };
 };
 
-const TopologyNodeCard: React.FC<NodeProps> = ({ data, selected }) => {
+  const TopologyNodeCard: React.FC<NodeProps> = ({ data, selected }) => {
   const nodeData = data as TopologyNodeData;
+  const { maskHost, maskIp, maskMacAddr } = useDemoMode();
   const Icon = roleIcon(nodeData.type || 'probe');
   const statusMeta = statusToTone(nodeData.status || 'online');
+  const displayLabel = maskHost(nodeData.label);
+  const displayIp = maskIp(nodeData.ip);
+  const displayIface = nodeData.interface
+    ? maskMacAddr(nodeData.interface)
+    : 'eth0';
 
   return (
     <div
@@ -121,11 +130,11 @@ const TopologyNodeCard: React.FC<NodeProps> = ({ data, selected }) => {
             <Icon className="w-4 h-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <div className="text-[12px] font-semibold text-[var(--text)] truncate">
-              {nodeData.label}
+            <div className="text-[12px] font-semibold text-[var(--text)] truncate" title={displayLabel}>
+              {displayLabel}
             </div>
-            <div className="text-[12px] font-mono text-[var(--text-muted)] truncate np-mono-val">
-              {nodeData.ip}
+            <div className="text-[12px] font-mono text-[var(--text-muted)] truncate np-mono-val" title={displayIface}>
+              {displayIp}
             </div>
           </div>
         </div>
@@ -171,6 +180,8 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const { maskHost, maskIp, maskMacAddr } = useDemoMode();
 
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -195,6 +206,12 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({
       fetchDynamicTopology(),
       fetchAnalyticsSummary(timeRange, 500),
     ]);
+    if (topoRes.error && (!topoRes.nodes || topoRes.nodes.length === 0)) {
+      setLoadError(topoRes.error);
+      setLoading(false);
+      return;
+    }
+    setLoadError(null);
 
     const perTarget: any[] = anaRes.analytics?.per_target || [];
     const targetByHost = new Map<string, any>();
@@ -563,9 +580,25 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({
           )}
         </ReactFlow>
 
+        {loadError && nodes.length === 0 ? (
+          <div className="p-4">
+            <ErrorState
+              title="Unable to resolve network topology"
+              message={loadError}
+              onRetry={loadTopologyData}
+              retrying={loading}
+            />
+          </div>
+        ) : null}
+
         {loading && nodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[var(--surface-backdrop)] text-[13px] text-[var(--text-secondary)]">
-            Loading live network graph…
+          <div className="absolute inset-0 p-6 flex flex-col justify-center gap-4 bg-[var(--surface-backdrop)]">
+            <Skeleton className="h-12 w-48 mx-auto rounded-[var(--radius-card)]" />
+            <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto w-full">
+              <Skeleton className="h-16 w-full rounded-[var(--radius-card)]" />
+              <Skeleton className="h-16 w-full rounded-[var(--radius-card)]" />
+              <Skeleton className="h-16 w-full rounded-[var(--radius-card)]" />
+            </div>
           </div>
         )}
 
@@ -575,7 +608,7 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({
             <div className="flex items-start justify-between gap-2 pb-2 border-b border-[var(--border)]">
               <div className="min-w-0">
                 <div className="text-[14px] font-semibold text-[var(--text)] truncate">
-                  {selectedData.label}
+                  {maskHost(selectedData.label)}
                 </div>
                 <div className="text-[12px] text-[var(--text-muted)] capitalize">
                   {selectedData.type} node
@@ -596,15 +629,17 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({
                 <span className="text-[var(--text-muted)]">IP / Target</span>
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono font-semibold text-[var(--accent)]">
-                    {selectedData.ip}
+                    {maskIp(selectedData.ip)}
                   </span>
-                  <CopyButton value={selectedData.ip} label="Copy IP" compact />
+                  <CopyButton value={maskIp(selectedData.ip)} label="Copy IP" compact />
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[var(--text-muted)]">Interface</span>
                 <span className="font-mono text-[var(--text-secondary)]">
-                  {selectedData.interface || 'eth0'}
+                  {selectedData.interface
+                    ? maskMacAddr(selectedData.interface)
+                    : 'eth0'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2">

@@ -32,10 +32,13 @@ import { Dialog } from '../components/ui/Dialog';
 import { StatusChip, StatusTone } from '../components/ui/StatusChip';
 import { CopyButton } from '../components/ui/CopyButton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { TextInput } from '../components/ui/TextInput';
 import { Select } from '../components/ui/Select';
 import { useSavedViews, SavedView } from '../hooks/useSavedViews';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { exportToCsv, exportToJson } from '../utils/export';
 import {
   formatLatencyMs,
@@ -97,6 +100,8 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
   const [nodes, setNodes] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const { maskHost, maskIp, maskMacAddr } = useDemoMode();
 
   const [search, setSearch] = useState('');
   const [filterChip, setFilterChip] = useState('all');
@@ -126,6 +131,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
       fetchInventoryNodes(),
       fetchDiagnosticHistory(500),
     ]);
+    setLoadError(nodeRes.error || histRes.error || null);
     setNodes(nodeRes.nodes || []);
     setHistory(histRes.records || []);
     setLoading(false);
@@ -346,10 +352,10 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
           <div>
             <div className="text-[12px] font-medium text-[var(--text-secondary)]">Primary host binding</div>
             <div className="text-[20px] font-semibold font-mono text-[var(--ok)] mt-1 np-mono-val">
-              {networkEnv?.primary_ip || '127.0.0.1'}
+              {maskIp(networkEnv?.primary_ip || '127.0.0.1')}
             </div>
             <div className="text-[12px] text-[var(--text-muted)] truncate max-w-[180px]">
-              {networkEnv?.hostname || 'localhost'}
+              {maskHost(networkEnv?.hostname || 'localhost')}
             </div>
           </div>
           <Wifi className="w-5 h-5 text-[var(--ok)]" aria-hidden="true" />
@@ -359,7 +365,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
           <div>
             <div className="text-[12px] font-medium text-[var(--text-secondary)]">Default gateway</div>
             <div className="text-[20px] font-semibold font-mono text-[var(--text)] mt-1 np-mono-val">
-              {networkEnv?.default_gateway || 'No data'}
+              {networkEnv?.default_gateway ? maskIp(networkEnv.default_gateway) : 'No data'}
             </div>
             <div className="text-[12px] text-[var(--text-muted)]">
               {counts.down} quiet down adapters
@@ -422,13 +428,13 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
           <table className="w-full border-collapse text-left text-[13px]">
             <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-[var(--text-secondary)] text-[12px] font-semibold border-b border-[var(--border)]">
               <tr>
-                <th className="py-3 px-3">Node / Adapter</th>
-                <th className="py-3 px-3">IP / Binding</th>
-                <th className="py-3 px-3">Kind</th>
-                <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-3">Last seen (UTC)</th>
-                <th className="py-3 px-3 text-right">Latency</th>
-                <th className="py-3 px-3 text-right">Actions</th>
+                <th className="py-2.5 px-2.5">Node / Adapter</th>
+                <th className="py-2.5 px-2.5">IP / Binding</th>
+                <th className="py-2.5 px-2.5">Kind</th>
+                <th className="py-2.5 px-2.5">Status</th>
+                <th className="py-2.5 px-2.5">Last seen (UTC)</th>
+                <th className="py-2.5 px-2.5 text-right">Latency</th>
+                <th className="py-2.5 px-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -458,8 +464,8 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                       isQuietDown ? 'opacity-55' : ''
                     }`}
                   >
-                    <td className="py-3 px-3 max-w-[230px]">
-                      <div className="flex items-center gap-2.5">
+                    <td className="py-2.5 px-2.5 max-w-[195px]">
+                      <div className="flex items-center gap-2">
                         <div
                           className={`w-8 h-8 rounded-[var(--radius-control)] flex items-center justify-center shrink-0 ${
                             isQuietDown
@@ -472,32 +478,34 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                           <Icon className="w-4 h-4" aria-hidden="true" />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-semibold text-[var(--text)] truncate">{row.name}</div>
+                          <div className="font-semibold text-[var(--text)] truncate">
+                            {row.assetKind === 'adapter' ? row.name : maskHost(row.name)}
+                          </div>
                           <div className="text-[12px] text-[var(--text-muted)] truncate">
-                            {row.macOrSource} · {row.speedOrNotes}
+                            {maskMacAddr(row.macOrSource)} · {row.speedOrNotes}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td
-                      className="py-3 px-3 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap"
+                      className="py-2.5 px-2.5 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="inline-flex items-center gap-1.5">
-                        <span>{row.ip}</span>
+                      <div className="inline-flex items-center gap-1">
+                        <span>{row.ip === 'No IPv4 bound' ? row.ip : maskIp(row.ip)}</span>
                         {row.ip !== 'No IPv4 bound' && (
-                          <CopyButton value={row.ip} label={`Copy ${row.ip}`} compact />
+                          <CopyButton value={maskIp(row.ip)} label={`Copy ${maskIp(row.ip)}`} compact />
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-[12px] text-[var(--text-secondary)] capitalize whitespace-nowrap">
-                      {row.assetKind === 'adapter' ? 'Host adapter' : row.role}
+                    <td className="py-2.5 px-2.5 text-[12px] text-[var(--text-secondary)] capitalize whitespace-nowrap">
+                      {row.assetKind === 'adapter' ? 'Adapter' : row.role}
                     </td>
-                    <td className="py-3 px-3 whitespace-nowrap">
+                    <td className="py-2.5 px-2.5 whitespace-nowrap">
                       <StatusChip size="sm" tone={statusTone} label={statusLabel} />
                     </td>
                     <td
-                      className="py-3 px-3 font-mono text-[12px] text-[var(--text-secondary)] whitespace-nowrap"
+                      className="py-2.5 px-2.5 font-mono text-[12px] text-[var(--text-secondary)] whitespace-nowrap"
                       title={row.lastSeen ? formatRelativeTime(row.lastSeen) : undefined}
                     >
                       {row.lastSeen
@@ -506,7 +514,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                         ? 'Link down'
                         : 'No probes yet'}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-[12px] np-mono-val whitespace-nowrap">
+                    <td className="py-2.5 px-2.5 text-right font-mono text-[12px] np-mono-val whitespace-nowrap">
                       <span
                         className={
                           row.latencyMs !== null
@@ -520,7 +528,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                       </span>
                     </td>
                     <td
-                      className="py-3 px-3 text-right whitespace-nowrap"
+                      className="py-2.5 px-2.5 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="inline-flex items-center gap-1.5">
@@ -557,6 +565,22 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
             </tbody>
           </table>
         </div>
+      ) : loadError && unifiedAssets.length === 0 ? (
+        <ErrorState
+          title="Unable to load infrastructure inventory"
+          message={loadError}
+          why="The NetPulse gateway failed to return monitored endpoints and diagnostic history."
+          howToFix="Confirm the gateway is running, check Settings -> Gateway URL, and click Retry."
+          onRetry={loadData}
+          retrying={loading}
+        />
+      ) : loading && unifiedAssets.length === 0 ? (
+        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
       ) : (
         <div className="p-8 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">
           <EmptyState
@@ -580,10 +604,18 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
       <SideDrawer
         open={Boolean(selectedAsset)}
         onClose={() => setSelectedAsset(null)}
-        title={selectedAsset?.name || 'Asset details'}
+        title={
+          selectedAsset
+            ? selectedAsset.assetKind === 'adapter'
+              ? selectedAsset.name
+              : maskHost(selectedAsset.name)
+            : 'Asset details'
+        }
         description={
           selectedAsset
-            ? `${selectedAsset.assetKind === 'adapter' ? 'OS network adapter' : 'Monitored endpoint'} · ${selectedAsset.ip}`
+            ? `${selectedAsset.assetKind === 'adapter' ? 'OS network adapter' : 'Monitored endpoint'} · ${
+                selectedAsset.ip === 'No IPv4 bound' ? selectedAsset.ip : maskIp(selectedAsset.ip)
+              }`
             : undefined
         }
         footer={
@@ -633,7 +665,9 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
               </div>
               <div className="p-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] col-span-2">
                 <div className="text-[var(--text-muted)]">MAC / Source</div>
-                <div className="font-mono text-[var(--text)] mt-1">{selectedAsset.macOrSource}</div>
+                <div className="font-mono text-[var(--text)] mt-1">
+                  {maskMacAddr(selectedAsset.macOrSource)}
+                </div>
               </div>
             </div>
 

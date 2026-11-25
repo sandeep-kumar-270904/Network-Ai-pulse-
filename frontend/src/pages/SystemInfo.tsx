@@ -5,6 +5,7 @@ import { StatusChip } from '../components/ui/StatusChip';
 import { CopyButton } from '../components/ui/CopyButton';
 import { ErrorState } from '../components/ui/ErrorState';
 import { Skeleton } from '../components/ui/Skeleton';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { getStoredGatewayUrl } from '../services/api';
 import { formatPercent } from '../utils/formatters';
 
@@ -66,9 +67,10 @@ export const SystemInfoPage: React.FC<SystemInfoProps> = ({
   networkEnv,
   backendOnline,
 }) => {
+  const { maskIp, maskText } = useDemoMode();
   const sys = system?.system || {};
   const interfaces = networkEnv?.interfaces || [];
-  const gatewayUrl = getStoredGatewayUrl();
+  const gatewayUrl = maskText(getStoredGatewayUrl());
 
   const memoryTotalGb = sys?.memory_total_bytes
     ? `${(sys.memory_total_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
@@ -87,7 +89,7 @@ export const SystemInfoPage: React.FC<SystemInfoProps> = ({
   const pythonRuntimeFull = sys.python_version ? String(sys.python_version) : 'No data';
   const processorFull = sys.processor ? String(sys.processor) : 'No data';
   const defaultGateway = networkEnv?.default_gateway?.ip
-    ? `${networkEnv.default_gateway.ip}${
+    ? `${maskIp(networkEnv.default_gateway.ip)}${
         networkEnv.default_gateway.interface ? ` (${networkEnv.default_gateway.interface})` : ''
       }`
     : 'No data';
@@ -195,9 +197,9 @@ export const SystemInfoPage: React.FC<SystemInfoProps> = ({
 
             <dl>
               <KeyValueRow label="Python runtime" value={pythonRuntimeFull} truncate copyable />
-              <KeyValueRow label="API server URL" value={gatewayUrl} truncate copyable />
+              <KeyValueRow label="Gateway URL" value={gatewayUrl} truncate copyable />
               <KeyValueRow label="Default route gateway" value={defaultGateway} truncate copyable />
-              <KeyValueRow label="OpenAPI docs" value={`${gatewayUrl}/docs`} href={`${gatewayUrl}/docs`} truncate />
+              <KeyValueRow label="OpenAPI docs" value={`${gatewayUrl}/docs`} href={`${getStoredGatewayUrl()}/docs`} truncate />
             </dl>
           </section>
         </div>

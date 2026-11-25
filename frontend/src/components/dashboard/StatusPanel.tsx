@@ -2,6 +2,7 @@ import React from 'react';
 import { Server, Database, Activity, CheckCircle2, AlertTriangle, XCircle, HardDrive, Cpu } from 'lucide-react';
 import { HealthResponse } from '../../types';
 import { formatPercent } from '../../utils/formatters';
+import { useDemoMode } from '../../contexts/DemoModeContext';
 
 interface StatusPanelProps {
   health: HealthResponse | null;
@@ -16,6 +17,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
   networkEnv,
   backendOnline,
 }) => {
+  const { maskHost } = useDemoMode();
   const sysInfo = system?.system || health?.system;
   const memoryPercent = sysInfo?.memory_used_percent ?? null;
   const interfaceCount = networkEnv?.interfaces?.length ?? null;
@@ -119,7 +121,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
 
       {/* Host / Interface Context */}
       <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between gap-2 text-[12px] font-mono text-[var(--text-muted)]">
-        <span className="truncate">Host: {sysInfo?.hostname || 'No data'}</span>
+        <span className="truncate">Host: {sysInfo?.hostname ? maskHost(sysInfo.hostname) : 'No data'}</span>
         <span className="shrink-0">
           Adapters: {interfaceCount !== null ? interfaceCount : 'No data'}
         </span>

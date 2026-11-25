@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, RefreshCw, ChevronRight, Clock, AlertTriangle } from 'lucide-react';
+import { Menu, RefreshCw, ChevronRight, Clock, AlertTriangle, EyeOff, Eye } from 'lucide-react';
 import { StatusChip, StatusTone } from '../ui/StatusChip';
 import { Tooltip } from '../ui/Tooltip';
 import { ThemeToggle, ThemeMode } from '../ui/ThemeToggle';
@@ -25,6 +25,8 @@ interface TopBarProps {
   onOpenMobileMenu: () => void;
   theme: ThemeMode;
   onToggleTheme: () => void;
+  demoMode?: boolean;
+  onToggleDemoMode?: () => void;
 }
 
 const TIME_RANGE_OPTIONS = [
@@ -52,6 +54,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenMobileMenu,
   theme,
   onToggleTheme,
+  demoMode = false,
+  onToggleDemoMode,
 }) => {
   const [mobilePopoverOpen, setMobilePopoverOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -175,6 +179,36 @@ export const TopBar: React.FC<TopBarProps> = ({
           <span>Sync</span>
         </button>
 
+        {onToggleDemoMode && (
+          <Tooltip
+            content={
+              demoMode
+                ? 'Demo mask active: hostnames, IPs, and MACs are masked for screenshots'
+                : 'Mask hostnames, IPs, and MACs for screenshots (Demo mode)'
+            }
+            side="bottom"
+          >
+            <button
+              type="button"
+              onClick={onToggleDemoMode}
+              aria-label={demoMode ? 'Disable demo privacy mask' : 'Enable demo privacy mask'}
+              aria-pressed={demoMode}
+              className={`h-10 px-2.5 rounded-[var(--radius-control)] inline-flex items-center gap-1.5 text-[12px] font-medium border transition-colors ${
+                demoMode
+                  ? 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40 font-semibold'
+                  : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text)] hover:bg-[var(--surface-3)]'
+              }`}
+            >
+              {demoMode ? (
+                <EyeOff className="w-4 h-4 shrink-0" aria-hidden="true" />
+              ) : (
+                <Eye className="w-4 h-4 shrink-0" aria-hidden="true" />
+              )}
+              <span>{demoMode ? 'Masked' : 'Demo'}</span>
+            </button>
+          </Tooltip>
+        )}
+
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </div>
 
@@ -232,6 +266,21 @@ export const TopBar: React.FC<TopBarProps> = ({
                 }}
               />
             </div>
+            {onToggleDemoMode && (
+              <button
+                type="button"
+                onClick={onToggleDemoMode}
+                aria-pressed={demoMode}
+                className={`w-full h-9 px-3 rounded-[var(--radius-control)] border text-[12px] font-medium flex items-center justify-between ${
+                  demoMode
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40'
+                    : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)]'
+                }`}
+              >
+                <span>Demo privacy mask</span>
+                <span className="font-mono">{demoMode ? 'ON' : 'OFF'}</span>
+              </button>
+            )}
           </div>
         )}
       </div>

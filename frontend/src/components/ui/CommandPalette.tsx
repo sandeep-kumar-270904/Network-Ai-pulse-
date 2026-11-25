@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRight, RefreshCw, PanelLeft, SunMoon, X } from 'lucide-react';
+import { Search, ArrowRight, RefreshCw, PanelLeft, SunMoon, EyeOff, X } from 'lucide-react';
 import { NAV_SECTIONS } from '../layout/Sidebar';
 
 interface CommandPaletteProps {
@@ -10,6 +10,8 @@ interface CommandPaletteProps {
   onSyncNow: () => void;
   onToggleSidebar: () => void;
   onToggleTheme: () => void;
+  demoMode?: boolean;
+  onToggleDemoMode?: () => void;
 }
 
 interface PaletteEntry {
@@ -26,6 +28,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onSyncNow,
   onToggleSidebar,
   onToggleTheme,
+  demoMode = false,
+  onToggleDemoMode,
 }) => {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -77,10 +81,24 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           onClose();
         },
       },
+      ...(onToggleDemoMode
+        ? [
+            {
+              id: 'act-demo',
+              group: 'Actions',
+              label: demoMode ? 'Disable demo privacy mask' : 'Enable demo privacy mask (mask IPs/MACs)',
+              hint: demoMode ? 'ON' : 'OFF',
+              action: () => {
+                onToggleDemoMode();
+                onClose();
+              },
+            },
+          ]
+        : []),
     ];
 
     return [...navEntries, ...actionEntries];
-  }, [navigate, onClose, onSyncNow, onToggleSidebar, onToggleTheme]);
+  }, [navigate, onClose, onSyncNow, onToggleSidebar, onToggleTheme, demoMode, onToggleDemoMode]);
 
   const filtered = entries.filter(
     (e) =>
@@ -183,6 +201,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       <SunMoon className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
                     ) : item.id === 'act-sidebar' ? (
                       <PanelLeft className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
+                    ) : item.id === 'act-demo' ? (
+                      <EyeOff className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
                     ) : (
                       <ArrowRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
                     )}

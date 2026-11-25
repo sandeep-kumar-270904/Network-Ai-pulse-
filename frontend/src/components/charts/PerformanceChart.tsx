@@ -10,6 +10,8 @@ import {
   formatTimestampUtc,
 } from '../../utils/formatters';
 import { ThemeMode } from '../ui/ThemeToggle';
+import { AccessibleChartFrame } from './AccessibleChartFrame';
+import { useDemoMode } from '../../contexts/DemoModeContext';
 
 interface MetricSeries {
   timestamps: string[];
@@ -49,6 +51,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
   seriesData,
 }) => {
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'jitter' | 'loss' | 'throughput'>('latency');
+  const { maskHost } = useDemoMode();
 
   const isLight = theme === 'light';
   const palette = isLight
@@ -169,7 +172,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
         const item = params[0];
         const idx = item.dataIndex;
         const fullUtc = formatTimestampUtc(rawTimestamps[idx] || item.name);
-        const targetName = currentSeries?.targets?.[idx] || 'Recorded target';
+        const rawTarget = currentSeries?.targets?.[idx];
+        const targetName = rawTarget ? maskHost(rawTarget) : 'Recorded target';
         const isOutage = currentSeries?.statuses?.[idx] && currentSeries.statuses[idx] !== 'passed';
         const rawVal = currentSeries?.values?.[idx];
 
@@ -278,18 +282,37 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
         </div>
       </div>
 
-      {/* Chart Canvas or Honest Empty State */}
-      <div className="relative w-full h-72">
-        {hasData ? (
-          <ReactECharts
-            option={option}
-            notMerge={true}
-            style={{ width: '100%', height: '100%' }}
-            opts={{ renderer: 'canvas' }}
-          />
-        ) : (
+      {/* Chart Canvas with Accessible Data Table Toggle or Empty State */}
+      {hasData ? (
+        <AccessibleChartFrame
+          title={`Telemetry time-series (${metricMeta.label}, ${windowLabel})`}
+          summary={`${xLabels.length} samples recorded for ${metricMeta.label} (${metricMeta.unit}). ${outages.length} outage events detected.`}
+          columns={[
+            { key: 'time', label: 'Timestamp (UTC)' },
+            { key: 'target', label: 'Target' },
+            { key: 'status', label: 'Status' },
+            { key: 'value', label: `${metricMeta.label} (${metricMeta.unit})`, align: 'right' },
+          ]}
+          rows={rawTimestamps.map((ts, idx) => ({
+            time: formatTimestampUtc(ts),
+            target: maskHost(currentSeries?.targets?.[idx] || 'Recorded target'),
+            status: currentSeries?.statuses?.[idx] === 'failed' ? 'Failed' : 'Passed',
+            value: formatMetricValue(currentSeries?.values?.[idx]),
+          }))}
+        >
+          <div className="relative w-full h-72">
+            <ReactECharts
+              option={option}
+              notMerge={true}
+              style={{ width: '100%', height: '100%' }}
+              opts={{ renderer: 'canvas' }}
+            />
+          </div>
+        </AccessibleChartFrame>
+      ) : (
+        <div className="relative w-full h-72">
           <div className="w-full h-full flex flex-col items-center justify-center border border-dashed border-[var(--border)] rounded-[var(--radius-card)] bg-[var(--surface-2)]/50 text-center p-6 space-y-2">
-            <Sliders className="w-8 h-8 text-[var(--text-muted)]" />
+            <Sliders className="w-8 h-8 text-[var(--text-muted)]" aria-hidden="true" />
             <div className="text-[13px] font-medium text-[var(--text)]">
               No telemetry samples in {windowLabel}
             </div>
@@ -297,8 +320,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
               Run an ICMP, TCP, or Synthetic test to populate recorded time-series metrics.
             </p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

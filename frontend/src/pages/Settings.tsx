@@ -21,6 +21,7 @@ import { ActionBar } from '../components/ui/ActionBar';
 import { Dialog } from '../components/ui/Dialog';
 import { Tooltip } from '../components/ui/Tooltip';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { DEFAULT_API_URL, testGatewayConnection } from '../services/api';
 import { formatRelativeTime, formatTimestampUtc } from '../utils/formatters';
 
@@ -73,7 +74,7 @@ const validateGatewayUrl = (
   const trimmed = raw.trim().replace(/\/+$/, '');
   if (!trimmed) {
     return {
-      error: 'API server URL is required. Enter a valid HTTP or HTTPS address.',
+      error: 'Gateway URL is required. Enter a valid HTTP or HTTPS address.',
       warning: null,
       normalized: trimmed,
     };
@@ -133,6 +134,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onRetryGateway,
 }) => {
   const { addToast } = useToast();
+  const { demoMode, setDemoMode, maskText } = useDemoMode();
 
   const [savedConfig, setSavedConfig] = useState<PlatformConfig>(loadSavedConfig);
   const [form, setForm] = useState<PlatformConfig>(() => {
@@ -476,7 +478,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 id="gateway"
                 icon={Globe}
                 title="Gateway"
-                description="Control-plane API server used by all dashboard telemetry and diagnostic operations."
+                description="Control-plane gateway used by all dashboard telemetry and diagnostic operations."
                 statusSlot={
                   <Tooltip content="Runs locally over FastAPI & Uvicorn">
                     <span className="inline-flex items-center gap-1 text-[12px] text-[var(--text-muted)] cursor-help">
@@ -488,7 +490,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               >
                 <Field
                   id="api-server-url"
-                  label="API server URL"
+                  label="Gateway URL"
                   helper={`Default: ${DEFAULT_API_URL}. Consequence: changing this immediately switches where all live probes, alerts, and history queries execute.`}
                   error={urlValidation.error}
                   warning={urlValidation.warning}
@@ -666,6 +668,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                     onLearnMore={() => setLearnMorePolicy('manualTargetSelection')}
                     auditNote={auditNotes.manualTargetSelection}
                   />
+
+                  <Switch
+                    checked={demoMode}
+                    onChange={(next) => setDemoMode(next)}
+                    title="Demo screenshot privacy mask"
+                    description="Deterministically masks internal IP addresses, hostnames, and MAC addresses across dashboards, topology, tables, and logs for safe screenshot sharing."
+                  />
                 </div>
               </SettingsCard>
             </div>
@@ -703,8 +712,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             <dl className="space-y-3.5 text-[13px]">
               <div className="space-y-1">
                 <dt className="text-[var(--text-muted)]">Saved gateway URL</dt>
-                <dd className="np-mono-val text-[var(--text)] break-all" title={savedConfig.gatewayUrl}>
-                  {savedConfig.gatewayUrl}
+                <dd className="np-mono-val text-[var(--text)] break-all" title={maskText(savedConfig.gatewayUrl)}>
+                  {maskText(savedConfig.gatewayUrl)}
                 </dd>
               </div>
 

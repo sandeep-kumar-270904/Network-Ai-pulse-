@@ -8,6 +8,10 @@ import { KpiCard } from '../components/dashboard/KpiCard';
 import { DataTable, DataColumn } from '../components/ui/DataTable';
 import { StatusChip, StatusTone } from '../components/ui/StatusChip';
 import { ThemeMode } from '../components/ui/ThemeToggle';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
+import { AccessibleChartFrame } from '../components/charts/AccessibleChartFrame';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import {
   formatChartTimeUtc,
   formatJitterMs,
@@ -74,14 +78,21 @@ const InlineSparkline: React.FC<{ values?: number[]; tone: 'ok' | 'warn' | 'dang
 export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 'dark' }) => {
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [chartView, setChartView] = useState<'aggregate' | 'compare'>('aggregate');
   const navigate = useNavigate();
+  const { maskHost } = useDemoMode();
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true);
-    const { analytics: data } = await fetchAnalyticsSummary(timeRange, 500);
-    setAnalytics(data);
+    const { analytics: data, error } = await fetchAnalyticsSummary(timeRange, 500);
+    if (error && !data) {
+      setLoadError(error);
+    } else {
+      setLoadError(null);
+      if (data) setAnalytics(data);
+    }
     setLoading(false);
   }, [timeRange]);
 
@@ -430,7 +441,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
           onClick={() => navigate('/diagnostics')}
           className="font-mono font-semibold text-[var(--accent)] hover:underline text-left"
         >
-          {r.target}
+          {maskHost(r.target)}
         </button>
       ),
     },
@@ -555,6 +566,29 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
 
   return (
     <div className="space-y-6">
+      {loadError && !analytics && (
+        <ErrorState
+          title="Unable to load performance analytics"
+          message={loadError}
+          why="The NetPulse gateway did not return latency percentile or time-series analytics."
+          howToFix="Verify the gateway is online and reachable in Settings, then click Retry."
+          onRetry={loadAnalytics}
+          retrying={loading}
+        />
+      )}
+
+      {loading && !analytics && (
+        <div className="space-y-4" aria-busy="true" aria-label="Loading performance analytics">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+          </div>
+          <Skeleton className="h-80 w-full rounded-[var(--radius-card)]" />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-[13px] font-mono text-[var(--text-secondary)]">
@@ -677,13 +711,34 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
         </div>
 
         {hasChart ? (
-          <div className="h-[360px] w-full">
-            <ReactECharts
-              option={chartView === 'aggregate' ? aggregateChartOption : compareChartOption}
-              notMerge={true}
-              style={{ width: '100%', height: '100%' }}
-            />
-          </div>
+          <AccessibleChartFrame
+            title={`Performance analytics (${chartView === 'aggregate' ? 'Aggregate latency & jitter' : 'Compare targets'}, ${windowLabel})`}
+            summary={`${analytics?.total_tests ?? 0} total samples in ${windowLabel}. P50 ${formatLatencyMs(analytics?.p50_ms)}, P95 ${formatLatencyMs(analytics?.p95_ms)}, P99 ${formatLatencyMs(analytics?.p99_ms)}.`}
+            columns={[
+              { key: 'time', label: 'Timestamp (UTC)' },
+              { key: 'target', label: 'Target' },
+              { key: 'status', label: 'Status' },
+              { key: 'latency', label: 'Avg RTT', align: 'right' },
+              { key: 'jitter', label: 'Jitter', align: 'right' },
+            ]}
+            rows={(analytics?.series?.iso_timestamps || analytics?.series?.timestamps || []).map(
+              (ts: string, idx: number) => ({
+                time: formatTimestampUtc(ts),
+                target: maskHost(analytics?.series?.targets?.[idx] || 'Recorded target'),
+                status: analytics?.series?.statuses?.[idx] === 'failed' ? 'Failed' : 'Passed',
+                latency: formatLatencyMs(analytics?.series?.latency?.[idx]),
+                jitter: formatJitterMs(analytics?.series?.jitter?.[idx]),
+              })
+            )}
+          >
+            <div className="h-[360px] w-full">
+              <ReactECharts
+                option={chartView === 'aggregate' ? aggregateChartOption : compareChartOption}
+                notMerge={true}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+          </AccessibleChartFrame>
         ) : (
           <div className="p-8 text-center space-y-3 border border-dashed border-[var(--border)] rounded-[var(--radius-card)]">
             <div className="text-[13px] text-[var(--text-secondary)]">

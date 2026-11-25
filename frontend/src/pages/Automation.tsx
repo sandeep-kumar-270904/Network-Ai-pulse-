@@ -30,6 +30,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import {
   formatLatencyMs,
   formatPercent,
@@ -86,6 +87,7 @@ export const Automation: React.FC = () => {
   const [intervalSec, setIntervalSec] = useState(60);
 
   const { addToast } = useToast();
+  const { maskHost } = useDemoMode();
 
   const loadJobsAndHistory = useCallback(async () => {
     setLoading(true);
@@ -360,8 +362,8 @@ export const Automation: React.FC = () => {
 
                     <td className="py-3 px-3 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
-                        <span>{job.target}</span>
-                        <CopyButton value={job.target} label={`Copy ${job.target}`} compact />
+                        <span>{maskHost(job.target)}</span>
+                        <CopyButton value={maskHost(job.target)} label={`Copy ${maskHost(job.target)}`} compact />
                       </div>
                     </td>
 
@@ -540,7 +542,7 @@ export const Automation: React.FC = () => {
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-[var(--text)] truncate">{tpl.name}</div>
                 <div className="text-[12px] font-mono text-[var(--text-secondary)] truncate">
-                  {tpl.target} · {tpl.testType === 'tcp_probe' ? 'TCP :443' : 'ICMP'} · {tpl.intervalSec}s
+                  {maskHost(tpl.target)} · {tpl.testType === 'tcp_probe' ? 'TCP :443' : 'ICMP'} · {tpl.intervalSec}s
                 </div>
               </div>
               <Plus className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />

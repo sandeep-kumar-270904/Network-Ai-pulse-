@@ -15,7 +15,10 @@ import {
 import { executePerformanceBenchmark } from '../services/api';
 import { StatusChip } from '../components/ui/StatusChip';
 import { TextInput } from '../components/ui/TextInput';
+import { ErrorState } from '../components/ui/ErrorState';
+import { AccessibleChartFrame } from '../components/charts/AccessibleChartFrame';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import {
   formatJitterMs,
   formatLatencyMs,
@@ -162,6 +165,7 @@ const renderDeltaBadge = (
 
 export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
   const { addToast } = useToast();
+  const { maskHost, maskText } = useDemoMode();
 
   const [testType, setTestType] = useState<BenchmarkCategory>('throughput_tcp');
   const [target, setTarget] = useState('127.0.0.1');
@@ -548,7 +552,7 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
                         : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text)]'
                     }`}
                   >
-                    {ip}
+                    {maskHost(ip)}
                   </button>
                 ))}
               </div>
@@ -653,19 +657,14 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-[var(--radius-control)] bg-[var(--danger-soft)] border border-[var(--danger)]/35 text-[var(--danger)] text-[13px] flex items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-                <span>{error}</span>
-              </span>
-              <button
-                type="button"
-                onClick={handleRun}
-                className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-semibold text-[var(--text)] hover:bg-[var(--surface-3)]"
-              >
-                Retry
-              </button>
-            </div>
+            <ErrorState
+              title="Synthetic benchmark failed"
+              message={error}
+              why="The socket benchmark could not reach the target host or the gateway timed out."
+              howToFix="Verify target reachability in Diagnostics and confirm the gateway is running, then click Retry."
+              onRetry={handleRun}
+              retrying={isRunning}
+            />
           )}
 
           {/* LIVE RUNNING PROGRESS + REAL-TIME CHART */}
@@ -676,7 +675,7 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
                   <span className="inline-flex items-center gap-2">
                     <RefreshCw className="w-4 h-4 animate-spin" aria-hidden="true" />
                     <span>
-                      Executing {CATEGORY_META[testType].label} against {target}…
+                      Executing {CATEGORY_META[testType].label} against {maskHost(target)}…
                     </span>
                   </span>
                   <span className="font-mono np-mono-val">
@@ -751,7 +750,7 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
             <div className="space-y-4">
               {result.details && (
                 <div className="p-3 rounded-[var(--radius-control)] bg-[var(--ok-soft)] border border-[var(--ok)]/30 text-[var(--ok)] text-[12px] font-mono flex flex-wrap items-center justify-between gap-2">
-                  <span>{result.details}</span>
+                  <span>{maskText(result.details)}</span>
                   {currentRun && (
                     <span className="text-[var(--text-secondary)]">
                       {formatTimestampUtc(currentRun.timestamp)}
@@ -769,7 +768,7 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
                 </span>
                 {previousRun && (
                   <span className="font-mono text-[var(--text-muted)]">
-                    Prev target: {previousRun.target}
+                    Prev target: {maskHost(previousRun.target)}
                   </span>
                 )}
               </div>
@@ -847,7 +846,46 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
                 <div className="text-[12px] font-medium text-[var(--text-secondary)] mb-1">
                   {prevResult ? 'Current vs previous run metrics' : 'Measured benchmark profile'}
                 </div>
-                <ReactECharts option={chartOption} style={{ height: '210px', width: '100%' }} />
+                <AccessibleChartFrame
+                  title={`Synthetic benchmark profile (${CATEGORY_META[testType].label})`}
+                  summary={maskText(result.details || `${CATEGORY_META[testType].label} metrics for ${maskHost(target)}.`)}
+                  columns={[
+                    { key: 'metric', label: 'Metric' },
+                    { key: 'current', label: 'Current run', align: 'right' },
+                    { key: 'previous', label: 'Previous run', align: 'right' },
+                  ]}
+                  rows={[
+                    ...(result.throughput_mbps !== undefined
+                      ? [
+                          {
+                            metric: 'TCP throughput',
+                            current: formatThroughputMbps(result.throughput_mbps),
+                            previous: prevResult?.throughput_mbps
+                              ? formatThroughputMbps(prevResult.throughput_mbps)
+                              : 'No data',
+                          },
+                        ]
+                      : []),
+                    ...(result.avg_rtt_ms !== undefined
+                      ? [
+                          {
+                            metric: 'Avg latency',
+                            current: formatLatencyMs(result.avg_rtt_ms),
+                            previous: prevResult?.avg_rtt_ms
+                              ? formatLatencyMs(prevResult.avg_rtt_ms)
+                              : 'No data',
+                          },
+                        ]
+                      : []),
+                    {
+                      metric: 'Jitter',
+                      current: formatJitterMs(result.jitter_ms),
+                      previous: prevResult?.jitter_ms ? formatJitterMs(prevResult.jitter_ms) : 'No data',
+                    },
+                  ]}
+                >
+                  <ReactECharts option={chartOption} style={{ height: '210px', width: '100%' }} />
+                </AccessibleChartFrame>
               </div>
 
               {result.steps && (

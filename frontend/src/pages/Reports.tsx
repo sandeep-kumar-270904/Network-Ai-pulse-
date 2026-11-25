@@ -28,6 +28,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { formatPercent, formatRelativeTime, formatTimestampUtc } from '../utils/formatters';
 
 type ReportType = 'exec_summary' | 'latency_audit' | 'inventory_topology';
@@ -76,7 +77,7 @@ const RANGE_OPTIONS = [
 const REPORT_TYPE_META: Record<ReportType, { title: string; subtitle: string; slug: string }> = {
   exec_summary: {
     title: 'Operational Executive Summary',
-    subtitle: 'Availability pass rate, P50/P95/P99 latency SLA percentiles, gateway metadata, and host specs.',
+    subtitle: 'Availability pass rate, P50/P95/P99 latency percentiles, gateway metadata, and host specs.',
     slug: 'executive_summary',
   },
   latency_audit: {
@@ -147,6 +148,7 @@ const triggerDirectDownload = (filename: string, content: string, format: Report
 
 export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
   const { addToast } = useToast();
+  const { maskHost, maskText } = useDemoMode();
 
   // Builder State
   const [reportType, setReportType] = useState<ReportType>('exec_summary');
@@ -200,7 +202,7 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
     return [
       {
         id: 'sched-default-1',
-        title: 'Daily Executive SLA Digest',
+        title: 'Daily Executive Digest',
         reportType: 'exec_summary',
         format: 'json',
         cadence: 'daily_08utc',
@@ -430,10 +432,11 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
   }, [reportType, rangeFilter, selectedTargets, format, filteredRecords, snapshot]);
 
   const previewLines = useMemo(() => {
-    const lines = compiled.content.split(/\r?\n/);
-    if (lines.length <= 42) return compiled.content;
+    const maskedContent = maskText(compiled.content);
+    const lines = maskedContent.split(/\r?\n/);
+    if (lines.length <= 42) return maskedContent;
     return `${lines.slice(0, 42).join('\n')}\n… (+${lines.length - 42} more lines)`;
-  }, [compiled.content]);
+  }, [compiled.content, maskText]);
 
   const handleGenerateAndDownload = () => {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -675,7 +678,7 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
                         : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text)]'
                     }`}
                   >
-                    {tgt}
+                    {maskHost(tgt)}
                   </button>
                 );
               })}

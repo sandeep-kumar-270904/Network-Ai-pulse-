@@ -22,6 +22,7 @@ import { StatusChip } from '../components/ui/StatusChip';
 import { TextInput } from '../components/ui/TextInput';
 import { CopyButton } from '../components/ui/CopyButton';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { formatLatencyMs, formatPercent } from '../utils/formatters';
 
 type ProbeMode = 'ICMP' | 'TCP' | 'TRACEROUTE';
@@ -71,6 +72,7 @@ const validateTargetHost = (raw: string): string | null => {
 
 export const Diagnostics: React.FC = () => {
   const { addToast } = useToast();
+  const { maskHost, maskIp, maskText } = useDemoMode();
 
   // Step 1: Target + Recent targets
   const [target, setTarget] = useState('8.8.8.8');
@@ -419,7 +421,7 @@ export const Diagnostics: React.FC = () => {
   };
 
   const activeStep = isRunning ? 4 : hasValidationError ? 1 : advancedOpen ? 3 : 2;
-  const copyTranscript = logs.map((l) => `[${l.ts}] ${l.text}`).join('\n');
+  const copyTranscript = logs.map((l) => `[${l.ts}] ${maskText(l.text)}`).join('\n');
 
   return (
     <div className="space-y-6">
@@ -427,7 +429,7 @@ export const Diagnostics: React.FC = () => {
       <div className="p-4 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">
         <ol className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[12px]">
           {[
-            { num: 1, title: 'Target', desc: targetError ? 'Needs attention' : target.trim() || 'Set host' },
+            { num: 1, title: 'Target', desc: targetError ? 'Needs attention' : maskHost(target.trim()) || 'Set host' },
             { num: 2, title: 'Test protocol', desc: protocol === 'ICMP' ? 'ICMP Ping' : protocol === 'TCP' ? `TCP :${tcpPort}` : 'Traceroute' },
             { num: 3, title: 'Options', desc: advancedOpen ? 'Custom parameters' : 'Standard defaults' },
             { num: 4, title: 'Run', desc: isRunning ? `Running ${(elapsedMs / 1000).toFixed(1)}s` : summary ? 'Completed' : 'Ready to dispatch' },
@@ -537,7 +539,7 @@ export const Diagnostics: React.FC = () => {
                           : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text)]'
                       }`}
                     >
-                      {item}
+                      {maskHost(item)}
                     </button>
                   ))}
                 </div>
@@ -856,10 +858,10 @@ export const Diagnostics: React.FC = () => {
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[12px] px-3 py-2 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)]">
                   <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent)]" aria-hidden="true" />
-                    <span>{summary.summaryText}</span>
+                    <span>{maskText(summary.summaryText)}</span>
                   </span>
                   <span className="font-mono text-[var(--text-muted)]">
-                    Resolved: {summary.resolvedIp} · {formatLatencyMs(summary.durationMs)}
+                    Resolved: {maskIp(summary.resolvedIp)} · {formatLatencyMs(summary.durationMs)}
                   </span>
                 </div>
               </>
@@ -918,7 +920,7 @@ export const Diagnostics: React.FC = () => {
                       <span className="text-[var(--text-muted)] shrink-0 select-none">
                         [{entry.ts}]
                       </span>
-                      <span className={`break-all ${colorCls}`}>{entry.text}</span>
+                      <span className={`break-all ${colorCls}`}>{maskText(entry.text)}</span>
                     </div>
                   );
                 })

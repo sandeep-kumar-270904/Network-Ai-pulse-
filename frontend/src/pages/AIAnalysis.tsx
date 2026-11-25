@@ -30,9 +30,13 @@ import { SideDrawer } from '../components/ui/SideDrawer';
 import { StatusChip, StatusTone } from '../components/ui/StatusChip';
 import { CopyButton } from '../components/ui/CopyButton';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
+import { AccessibleChartFrame } from '../components/charts/AccessibleChartFrame';
 import { ThemeMode } from '../components/ui/ThemeToggle';
 import { useSavedViews, SavedView } from '../hooks/useSavedViews';
 import { useToast } from '../components/ui/Toast';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { exportToCsv, exportToJson } from '../utils/export';
 import {
   formatChartTimeUtc,
@@ -82,6 +86,7 @@ interface AIAnalysisProps {
 
 export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any | null>(null);
@@ -99,11 +104,13 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
 
   const { views, saveView, deleteView } = useSavedViews<AnomalySavedState>('anomaly');
   const { addToast } = useToast();
+  const { maskHost, maskText } = useDemoMode();
 
   const handleScan = useCallback(async () => {
     setLoading(true);
-    const { analysis: res } = await runAiAnomalyScan(1000);
-    setAnalysis(res);
+    const { analysis: res, error } = await runAiAnomalyScan(1000);
+    setLoadError(error || null);
+    if (res) setAnalysis(res);
     setLoading(false);
   }, []);
 
@@ -567,9 +574,28 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
               </p>
             </div>
           </div>
-          <div className="h-[260px] w-full">
-            <ReactECharts option={contextChartOption} notMerge={true} style={{ width: '100%', height: '100%' }} />
-          </div>
+          <AccessibleChartFrame
+            title="Anomalies in RTT baseline context"
+            summary={`${chartPoints.length} samples plotted with baseline RTT and diamond anomaly markers.`}
+            columns={[
+              { key: 'time', label: 'Timestamp (UTC)' },
+              { key: 'target', label: 'Target' },
+              { key: 'classification', label: 'Classification' },
+              { key: 'rtt', label: 'Avg RTT', align: 'right' },
+              { key: 'loss', label: 'Packet loss', align: 'right' },
+            ]}
+            rows={chartPoints.map((pt: AnomalyRecord) => ({
+              time: formatTimestampUtc(pt.timestamp),
+              target: maskHost(pt.target),
+              classification: pt.classification.replace('_', ' '),
+              rtt: formatLatencyMs(pt.avg_rtt_ms),
+              loss: formatPercent(pt.packet_loss_pct),
+            }))}
+          >
+            <div className="h-[260px] w-full">
+              <ReactECharts option={contextChartOption} notMerge={true} style={{ width: '100%', height: '100%' }} />
+            </div>
+          </AccessibleChartFrame>
         </div>
       )}
 
@@ -689,7 +715,7 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
                       </td>
                       <td className="py-3 px-3 text-[var(--accent)] font-semibold whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <span>{item.target}</span>
+                          <span>{maskHost(item.target)}</span>
                           {row.count > 1 && (
                             <button
                               type="button"
@@ -810,6 +836,21 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
             </tbody>
           </table>
         </div>
+      ) : loadError && !analysis ? (
+        <ErrorState
+          title="Unable to run anomaly analysis"
+          message={loadError}
+          why="The NetPulse gateway could not complete IsolationForest scoring."
+          howToFix="Confirm the gateway is running and check Settings -> Gateway URL, then click Retry."
+          onRetry={handleScan}
+          retrying={loading}
+        />
+      ) : loading && !analysis ? (
+        <div className="p-5 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)] space-y-3">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
       ) : (
         <div className="p-8 rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">
           <EmptyState
@@ -833,7 +874,7 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
       <SideDrawer
         open={Boolean(activeGroup)}
         onClose={() => setActiveGroup(null)}
-        title={activeGroup?.lead.target || 'Anomaly detail'}
+        title={activeGroup?.lead.target ? maskHost(activeGroup.lead.target) : 'Anomaly detail'}
         description={
           activeGroup && activeGroup.count > 1
             ? `${activeGroup.count} occurrences · Last ${formatTimestampUtc(activeGroup.lastTimestamp)}`
@@ -880,7 +921,7 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
 
             <div className="p-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] space-y-1">
               <div className="text-[12px] text-[var(--text-muted)]">Flag reason & decision</div>
-              <div className="text-[var(--text)] font-medium">{activeGroup.lead.reason}</div>
+              <div className="text-[var(--text)] font-medium">{maskText(activeGroup.lead.reason)}</div>
               <div className="text-[12px] font-mono text-[var(--text-secondary)]">
                 Confidence: {activeGroup.lead.confidence_pct}% · Score: {activeGroup.lead.anomaly_score}
               </div>

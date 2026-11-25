@@ -18,7 +18,10 @@ import { TopologyGraph } from '../components/topology/TopologyGraph';
 import { DataTable, DataColumn } from '../components/ui/DataTable';
 import { StatusChip, StatusTone } from '../components/ui/StatusChip';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
 import { ThemeMode } from '../components/ui/ThemeToggle';
+import { useDemoMode } from '../contexts/DemoModeContext';
 import { fetchAlerts, fetchAnalyticsSummary, fetchInventoryNodes } from '../services/api';
 import { HealthResponse } from '../types';
 import { TimeRangeOption } from '../components/layout/TopBar';
@@ -71,8 +74,12 @@ export const Overview: React.FC<OverviewProps> = ({
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [nodeCount, setNodeCount] = useState<number>(0);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [partialErrors, setPartialErrors] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [gatewayRttHistory, setGatewayRttHistory] = useState<number[]>([]);
   const navigate = useNavigate();
+  const { maskHost, maskIp, maskText } = useDemoMode();
 
   useEffect(() => {
     if (typeof gatewayLatencyMs === 'number' && Number.isFinite(gatewayLatencyMs)) {
@@ -80,31 +87,34 @@ export const Overview: React.FC<OverviewProps> = ({
     }
   }, [gatewayLatencyMs]);
 
+  const loadOverviewData = React.useCallback(async () => {
+    setLoading(true);
+    const [anaRes, invRes, alertRes] = await Promise.all([
+      fetchAnalyticsSummary(timeRange, 500),
+      fetchInventoryNodes(),
+      fetchAlerts(40),
+    ]);
+    const errs = [anaRes.error, invRes.error, alertRes.error].filter(Boolean) as string[];
+    setPartialErrors(errs);
+    if (anaRes.analytics) setAnalytics(anaRes.analytics);
+    if (invRes.nodes) setNodeCount(invRes.nodes.length);
+    if (alertRes.events) setAlerts(alertRes.events);
+    setLoadError(errs.length === 3 ? errs[0] : null);
+    setLoading(false);
+  }, [timeRange]);
+
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      const [anaRes, invRes, alertRes] = await Promise.all([
-        fetchAnalyticsSummary(timeRange, 500),
-        fetchInventoryNodes(),
-        fetchAlerts(40),
-      ]);
-      if (!active) return;
-      if (anaRes.analytics) setAnalytics(anaRes.analytics);
-      if (invRes.nodes) setNodeCount(invRes.nodes.length);
-      if (alertRes.events) setAlerts(alertRes.events);
-    };
-    load();
-    const timer = setInterval(load, 10000);
+    loadOverviewData();
+    const timer = setInterval(loadOverviewData, 10000);
     return () => {
-      active = false;
       clearInterval(timer);
     };
-  }, [backendOnline, timeRange]);
+  }, [loadOverviewData, backendOnline]);
 
   const sysInfo = system?.system || health?.system;
   const memoryUsedPercent: number | null = sysInfo?.memory_used_percent ?? null;
   const cpuCount: number | null = sysInfo?.cpu_count_logical ?? null;
-  const defaultGw = networkEnv?.default_gateway || 'No data';
+  const defaultGw = networkEnv?.default_gateway ? maskIp(networkEnv.default_gateway) : 'No data';
   const passRate: number | null = analytics?.pass_rate_pct ?? null;
   const windowLabel: string = analytics?.window_label || `Last ${timeRange}`;
 
@@ -165,7 +175,7 @@ export const Overview: React.FC<OverviewProps> = ({
         items.push({
           id: `target-${pt.target}`,
           severity: pt.latest_status === 'failed' || pt.pass_rate_pct < 70 ? 'critical' : 'warning',
-          title: `${pt.target} probe failures`,
+          title: `${maskHost(pt.target)} probe failures`,
           detail: `${formatPercent(pt.pass_rate_pct)} pass rate · ${formatPercent(pt.avg_loss_pct)} avg loss`,
           route: '/analytics',
         });
@@ -175,8 +185,8 @@ export const Overview: React.FC<OverviewProps> = ({
       items.push({
         id: `alert-${al.id}`,
         severity: al.level === 'critical' ? 'critical' : 'warning',
-        title: al.source || 'Operational alert',
-        detail: al.message,
+        title: maskText(al.source || 'Operational alert'),
+        detail: maskText(al.message),
         timestamp: al.timestamp,
         route: '/alerts',
       });
@@ -224,7 +234,7 @@ export const Overview: React.FC<OverviewProps> = ({
           onClick={() => navigate('/diagnostics')}
           className="font-mono font-semibold text-[var(--accent)] hover:underline text-left"
         >
-          {r.target}
+          {maskHost(r.target)}
         </button>
       ),
     },
@@ -293,7 +303,7 @@ export const Overview: React.FC<OverviewProps> = ({
 
   const hasProblems = !backendOnline || failingTargetsCount > 0 || unackAlerts.length > 0;
   const plainStatusLine = !backendOnline
-    ? 'API gateway unreachable. Diagnostics and live probes are offline.'
+    ? 'Gateway unreachable. Active probes and live diagnostics are paused.'
     : failingTargetsCount > 0
     ? `${failingTargetsCount} of ${totalTargetsCount} targets failing${
         failingSince ? ` since ${formatChartTimeUtc(failingSince)}` : ''
@@ -306,6 +316,47 @@ export const Overview: React.FC<OverviewProps> = ({
 
   return (
     <div className="space-y-6">
+      {loadError && !analytics ? (
+        <ErrorState
+          title="Unable to load network overview"
+          message={loadError}
+          why="The NetPulse gateway failed to return analytics, inventory, or alert streams."
+          howToFix="Verify the FastAPI gateway is running and check Settings -> Gateway URL, then click Retry."
+          onRetry={loadOverviewData}
+          retrying={loading}
+        />
+      ) : null}
+
+      {!loadError && partialErrors.length > 0 && analytics && (
+        <div
+          role="status"
+          className="p-3 rounded-[var(--radius-control)] bg-[var(--warn-soft)] border border-[var(--warn)]/35 flex flex-wrap items-center justify-between gap-2 text-[13px]"
+        >
+          <span className="text-[var(--text)]">
+            <strong>Partial telemetry:</strong> {partialErrors.length} stream(s) failed ({partialErrors[0]}). Displaying available cached and live metrics.
+          </span>
+          <button
+            type="button"
+            onClick={loadOverviewData}
+            className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)]"
+          >
+            Retry sync
+          </button>
+        </div>
+      )}
+
+      {loading && !analytics ? (
+        <div className="space-y-6" aria-busy="true" aria-label="Loading overview telemetry">
+          <Skeleton className="h-14 w-full rounded-[var(--radius-card)]" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+            <Skeleton className="h-28 w-full rounded-[var(--radius-card)]" />
+          </div>
+          <Skeleton className="h-80 w-full rounded-[var(--radius-card)]" />
+        </div>
+      ) : null}
       {/* Plain-language operational status summary with drill-down links */}
       <div
         className={`p-4 rounded-[var(--radius-card)] border flex flex-wrap items-center justify-between gap-3 ${
@@ -353,7 +404,7 @@ export const Overview: React.FC<OverviewProps> = ({
       {/* 4 KPI Summary Cards with delta, trend sparkline & drill-down */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          label="Backend API latency"
+          label="Gateway API latency"
           value={
             backendOnline
               ? gatewayLatencyMs !== undefined
