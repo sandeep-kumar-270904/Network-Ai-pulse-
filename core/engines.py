@@ -44,25 +44,28 @@ def _run_local_tcp_throughput(duration_sec: int, streams: int) -> Dict[str, Any]
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.bind(("127.0.0.1", 0))
     server_sock.listen(streams * 2)
-    server_sock.settimeout(1.0)
+    server_sock.settimeout(0.1)
     port = server_sock.getsockname()[1]
 
-    stop_flag = threading.Event()
+    stop_accept = threading.Event()
     bytes_lock = threading.Lock()
     total_bytes_received = 0
+    handlers: List[threading.Thread] = []
 
     def handle_client(conn: socket.socket) -> None:
         nonlocal total_bytes_received
         local_sum = 0
         try:
             conn.settimeout(1.0)
-            while not stop_flag.is_set():
+            while True:
                 try:
                     data = conn.recv(65536)
                     if not data:
                         break
                     local_sum += len(data)
                 except socket.timeout:
+                    if stop_accept.is_set():
+                        break
                     continue
                 except Exception:
                     break
@@ -72,8 +75,7 @@ def _run_local_tcp_throughput(duration_sec: int, streams: int) -> Dict[str, Any]
                 total_bytes_received += local_sum
 
     def accept_loop() -> None:
-        handlers: List[threading.Thread] = []
-        while not stop_flag.is_set():
+        while not stop_accept.is_set():
             try:
                 conn, _ = server_sock.accept()
                 t = threading.Thread(target=handle_client, args=(conn,), daemon=True)
@@ -83,8 +85,6 @@ def _run_local_tcp_throughput(duration_sec: int, streams: int) -> Dict[str, Any]
                 continue
             except Exception:
                 break
-        for h in handlers:
-            h.join(timeout=1.0)
 
     accept_thread = threading.Thread(target=accept_loop, daemon=True)
     accept_thread.start()
@@ -99,11 +99,15 @@ def _run_local_tcp_throughput(duration_sec: int, streams: int) -> Dict[str, Any]
         try:
             sock.connect(("127.0.0.1", port))
             end_at = start_ts + duration_sec
-            while time.perf_counter() < end_at and not stop_flag.is_set():
+            while time.perf_counter() < end_at:
                 sock.sendall(payload)
         except Exception:
             pass
         finally:
+            try:
+                sock.shutdown(socket.SHUT_WR)
+            except Exception:
+                pass
             sock.close()
 
     for _ in range(streams):
@@ -115,9 +119,11 @@ def _run_local_tcp_throughput(duration_sec: int, streams: int) -> Dict[str, Any]
         ct.join(timeout=duration_sec + 2)
 
     elapsed = max(0.05, time.perf_counter() - start_ts)
-    stop_flag.set()
-    server_sock.close()
+    stop_accept.set()
     accept_thread.join(timeout=1.5)
+    for h in handlers:
+        h.join(timeout=2.0)
+    server_sock.close()
 
     megabits = (total_bytes_received * 8) / 1_000_000.0
     mbps = round(megabits / elapsed, 2)

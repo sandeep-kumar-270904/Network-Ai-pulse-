@@ -1,7 +1,17 @@
 import axios, { AxiosInstance } from 'axios';
 import { HealthResponse } from '../types';
 
-export const API_BASE_URL = 'http://127.0.0.1:8000';
+export const DEFAULT_API_URL = 'http://127.0.0.1:8000';
+
+export const getStoredGatewayUrl = (): string => {
+  try {
+    return window.localStorage.getItem('netpulse_gateway_url') || DEFAULT_API_URL;
+  } catch {
+    return DEFAULT_API_URL;
+  }
+};
+
+export const API_BASE_URL = getStoredGatewayUrl();
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -10,6 +20,31 @@ export const apiClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+export const setApiBaseUrl = (url: string) => {
+  apiClient.defaults.baseURL = url;
+};
+
+export const testGatewayConnection = async (
+  url: string
+): Promise<{ ok: boolean; latencyMs: number; version?: string; error?: string }> => {
+  const cleanUrl = url.trim().replace(/\/+$/, '');
+  const start = performance.now();
+  try {
+    const res = await axios.get<HealthResponse>(`${cleanUrl}/health`, { timeout: 4000 });
+    const latencyMs = Math.max(1, Math.round(performance.now() - start));
+    const rawVer = res.data?.version || '1.0.0';
+    const cleanVer = rawVer.replace(/-day\d+/i, '');
+    return { ok: true, latencyMs, version: `v${cleanVer.replace(/^v/, '')}` };
+  } catch (err: unknown) {
+    const latencyMs = Math.round(performance.now() - start);
+    return {
+      ok: false,
+      latencyMs,
+      error: extractAxiosError(err, "Can't reach server. Check the address and that the service is running."),
+    };
+  }
+};
 
 export interface ModuleStatusItem {
   name: string;

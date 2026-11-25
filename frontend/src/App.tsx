@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
-import { Header } from './components/layout/Header';
+import { TopBar } from './components/layout/TopBar';
+import { CommandPalette } from './components/ui/CommandPalette';
+import { ToastProvider } from './components/ui/Toast';
 import { Overview } from './pages/Overview';
 import { Diagnostics } from './pages/Diagnostics';
 import { Topology } from './pages/Topology';
@@ -14,84 +17,154 @@ import { TestHistory } from './pages/History';
 import { Analytics } from './pages/Analytics';
 import { Reports } from './pages/Reports';
 import { SystemInfoPage } from './pages/SystemInfo';
-import { SettingsPage } from './pages/Settings';
-import { fetchHealth, fetchSystemInfo, fetchNetworkEnv } from './services/api';
+import { SettingsPage, PlatformConfig } from './pages/Settings';
+import {
+  fetchHealth,
+  fetchSystemInfo,
+  fetchNetworkEnv,
+  getStoredGatewayUrl,
+  setApiBaseUrl,
+} from './services/api';
 import { HealthResponse } from './types';
 
+const SIDEBAR_STORAGE_KEY = 'netpulse_sidebar_collapsed';
+
+const ROUTE_META: Record<string, { section: string; page: string; title: string; subtitle: string }> = {
+  '/': {
+    section: 'Observability',
+    page: 'Overview',
+    title: 'Network overview',
+    subtitle: 'Real-time host telemetry, gateway latency, and active interface status.',
+  },
+  '/topology': {
+    section: 'Observability',
+    page: 'Network Topology',
+    title: 'Network topology',
+    subtitle: 'Dynamic device fabric resolved from your default gateway and local ARP neighbors.',
+  },
+  '/inventory': {
+    section: 'Observability',
+    page: 'Inventory',
+    title: 'Infrastructure inventory',
+    subtitle: 'Discovered local network peers, host adapters, and monitored probe targets.',
+  },
+  '/diagnostics': {
+    section: 'Active Testing',
+    page: 'Diagnostics',
+    title: 'Network diagnostics',
+    subtitle: 'Live ICMP echo probes, TCP port handshakes, and Layer-3 path traceroutes.',
+  },
+  '/performance': {
+    section: 'Active Testing',
+    page: 'Synthetic Tests',
+    title: 'Synthetic performance tests',
+    subtitle: 'Multi-stream TCP throughput, packet jitter stability bursts, and Path MTU discovery.',
+  },
+  '/automation': {
+    section: 'Active Testing',
+    page: 'Automation',
+    title: 'Test automation',
+    subtitle: 'Scheduled background probe jobs and execution intervals.',
+  },
+  '/history': {
+    section: 'Active Testing',
+    page: 'Test History',
+    title: 'Test history',
+    subtitle: 'Persistent execution archive stored in the local telemetry database.',
+  },
+  '/ai-analysis': {
+    section: 'Intelligence',
+    page: 'Anomaly Detection',
+    title: 'Anomaly detection',
+    subtitle: 'Unsupervised IsolationForest scoring across recorded latency and packet loss telemetry.',
+  },
+  '/alerts': {
+    section: 'Intelligence',
+    page: 'Alerts & Events',
+    title: 'Alerts and events',
+    subtitle: 'Operational event stream for packet loss, latency thresholds, and scheduled runs.',
+  },
+  '/analytics': {
+    section: 'Intelligence',
+    page: 'Analytics',
+    title: 'Performance analytics',
+    subtitle: 'P50, P95, and P99 latency percentiles and longitudinal stability trends.',
+  },
+  '/reports': {
+    section: 'Intelligence',
+    page: 'Reports',
+    title: 'Technical reports',
+    subtitle: 'Export raw CSV latency datasets and JSON infrastructure audits.',
+  },
+  '/system': {
+    section: 'System',
+    page: 'System Info',
+    title: 'System information',
+    subtitle: 'Host hardware, operating system environment, and network interface specifications.',
+  },
+  '/settings': {
+    section: 'Settings',
+    page: 'Platform',
+    title: 'Platform settings',
+    subtitle: 'Configure the API gateway connection, telemetry polling cadence, and safety policies.',
+  },
+};
+
 const AppLayout: React.FC = () => {
-  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [mobileOpen, setMobileOpen] = useState<boolean>(false);
+  const [paletteOpen, setPaletteOpen] = useState<boolean>(false);
+
+  const [gatewayUrl, setGatewayUrl] = useState<string>(() => getStoredGatewayUrl());
+  const [pollingSec, setPollingSec] = useState<number>(() => {
+    try {
+      const val = Number(window.localStorage.getItem('netpulse_polling_sec'));
+      return val >= 2 && val <= 30 ? val : 5;
+    } catch {
+      return 5;
+    }
+  });
+
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
   const [gatewayLatencyMs, setGatewayLatencyMs] = useState<number | undefined>(undefined);
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const [healthData, setHealthData] = useState<HealthResponse | null>(null);
   const [systemData, setSystemData] = useState<any | null>(null);
   const [networkEnvData, setNetworkEnvData] = useState<any | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Page titles map
-  const routeTitles: Record<string, { title: string; subtitle: string }> = {
-    '/': {
-      title: 'NOC Overview',
-      subtitle: 'Real-time telemetry, platform subsystems and core health metrics.',
-    },
-    '/diagnostics': {
-      title: 'Network Diagnostics',
-      subtitle: 'Live ICMP socket probe transmitters, real packet RTT, and jitter telemetry.',
-    },
-    '/topology': {
-      title: 'Network Topology',
-      subtitle: 'Interactive React Flow device map and connection fabric.',
-    },
-    '/inventory': {
-      title: 'Infrastructure Inventory',
-      subtitle: 'Monitored routers, distribution switches, probe sensors and local adapters.',
-    },
-    '/performance': {
-      title: 'Performance Testing',
-      subtitle: 'Throughput capacity, UDP packet jitter, and RFC 2544 benchmark configuration.',
-    },
-    '/automation': {
-      title: 'Test Automation',
-      subtitle: 'Scheduled cron jobs and autonomous network regression routines.',
-    },
-    '/ai-analysis': {
-      title: 'AI Anomaly Detection',
-      subtitle: 'Statistical variance modeling and Scikit-learn unsupervised anomaly detection.',
-    },
-    '/alerts': {
-      title: 'Alerts & Events',
-      subtitle: 'Subsystem audit logs, gateway transitions, and connection events.',
-    },
-    '/history': {
-      title: 'Test History',
-      subtitle: 'SQLite-backed execution archive of diagnostic runs.',
-    },
-    '/analytics': {
-      title: 'Performance Analytics',
-      subtitle: 'Historical trends, latency percentiles, and capacity forecasting.',
-    },
-    '/reports': {
-      title: 'Technical Reports',
-      subtitle: 'Automated executive summaries and compliance export profiles.',
-    },
-    '/system': {
-      title: 'System Information',
-      subtitle: 'Host hardware, OS platform, memory metrics, and passive network interfaces.',
-    },
-    '/settings': {
-      title: 'Settings',
-      subtitle: 'REST gateway URL, telemetry sampling frequency, and security policies.',
-    },
-  };
-
-  const currentMeta = routeTitles[location.pathname] || {
+  const currentMeta = ROUTE_META[location.pathname] || {
+    section: 'NetPulse AI',
+    page: 'Workspace',
     title: 'NetPulse AI',
-    subtitle: 'Network Performance Testing & Intelligence Platform',
+    subtitle: 'Network performance intelligence platform.',
   };
+
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      } catch {
+        // Ignore storage errors
+      }
+      return next;
+    });
+  }, []);
 
   const pollTelemetry = useCallback(async () => {
     const healthRes = await fetchHealth();
+    setLastSyncAt(new Date());
+
     if (healthRes.data) {
       setBackendOnline(true);
       setGatewayLatencyMs(healthRes.latencyMs);
@@ -101,55 +174,142 @@ const AppLayout: React.FC = () => {
       setGatewayLatencyMs(undefined);
     }
 
-    const sysRes = await fetchSystemInfo();
-    if (sysRes.data) {
-      setSystemData(sysRes.data);
-    }
-
-    const netRes = await fetchNetworkEnv();
-    if (netRes.data) {
-      setNetworkEnvData(netRes.data);
-    }
+    const [sysRes, netRes] = await Promise.all([fetchSystemInfo(), fetchNetworkEnv()]);
+    if (sysRes.data) setSystemData(sysRes.data);
+    if (netRes.data) setNetworkEnvData(netRes.data);
   }, []);
 
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true);
+  const handleManualRefresh = useCallback(async () => {
+    setIsSyncing(true);
     await pollTelemetry();
-    setIsRefreshing(false);
-  };
+    setIsSyncing(false);
+  }, [pollTelemetry]);
 
   useEffect(() => {
     pollTelemetry();
-    const interval = setInterval(pollTelemetry, 5000);
-    return () => clearInterval(interval);
-  }, [pollTelemetry]);
+    const interval = window.setInterval(pollTelemetry, pollingSec * 1000);
+    return () => window.clearInterval(interval);
+  }, [pollTelemetry, pollingSec]);
+
+  // Global keyboard shortcuts: Cmd/Ctrl+K (Palette), [ (Toggle sidebar)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      if (!isTyping && e.key === '[' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggleSidebar]);
+
+  const handleSettingsSaved = useCallback(
+    (cfg: PlatformConfig) => {
+      setGatewayUrl(cfg.gatewayUrl);
+      setPollingSec(cfg.pollingIntervalSec);
+      setApiBaseUrl(cfg.gatewayUrl);
+      handleManualRefresh();
+    },
+    [handleManualRefresh]
+  );
+
+  const isSettingsPage = location.pathname === '/settings';
 
   return (
-    <div className="min-h-screen bg-[#080E19] text-[#EAF3FF] flex">
-      {/* Fixed Collapsible Sidebar */}
+    <div className="min-h-screen np-ambient-canvas text-[var(--text)] flex">
+      <a href="#main-content" className="np-skip-link">
+        Skip to main content
+      </a>
+
       <Sidebar
         collapsed={collapsed}
-        onToggle={() => setCollapsed(!collapsed)}
+        onToggle={toggleSidebar}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+        onOpenPalette={() => setPaletteOpen(true)}
         backendOnline={backendOnline}
-        version="v1.0.0-day1"
+        version="v1.0.0"
       />
 
-      {/* Main Operations Canvas */}
       <div
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out ${
-          collapsed ? 'ml-16' : 'ml-64'
+        className={`flex-1 flex flex-col min-h-screen min-w-0 transition-[margin-left] duration-[var(--dur-layout)] ease-[var(--ease-out)] ${
+          collapsed ? 'md:ml-[72px]' : 'md:ml-[264px]'
         }`}
       >
-        <Header
-          title={currentMeta.title}
-          subtitle={currentMeta.subtitle}
+        <TopBar
+          breadcrumbSection={currentMeta.section}
+          breadcrumbPage={currentMeta.page}
+          gatewayUrl={gatewayUrl}
           gatewayLatencyMs={gatewayLatencyMs}
           backendOnline={backendOnline}
-          onRefresh={handleManualRefresh}
-          isRefreshing={isRefreshing}
+          lastSyncAt={lastSyncAt}
+          onSyncNow={handleManualRefresh}
+          isSyncing={isSyncing}
+          onOpenMobileMenu={() => setMobileOpen(true)}
         />
 
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 sm:px-6 lg:px-8 focus:outline-none">
+          {/* Gateway Offline Banner */}
+          {!backendOnline && (
+            <div
+              role="alert"
+              className="max-w-[1040px] mx-auto mb-6 p-4 rounded-[var(--radius-card)] bg-[var(--danger-soft)] border border-[var(--danger)]/35 flex flex-wrap items-center justify-between gap-3"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <p className="text-[14px] font-semibold text-[var(--text)]">
+                    Backend gateway unreachable
+                  </p>
+                  <p className="text-[13px] text-[var(--text-secondary)]">
+                    Unable to reach <span className="font-mono">{gatewayUrl}</span>. Check that the local service is running.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleManualRefresh}
+                  className="h-9 px-3 rounded-[var(--radius-control)] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] text-[13px] font-medium text-[var(--text)] hover:bg-[var(--bg-hover)] inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>Retry</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/diagnostics')}
+                  className="h-9 px-3 rounded-[var(--radius-control)] text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] inline-flex items-center gap-1.5"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>View diagnostics</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Single H1 Page Header (Settings handles its own 1040px centered layout including anchor nav) */}
+          {!isSettingsPage && (
+            <div className="mb-6 space-y-1">
+              <h1 className="np-page-title">{currentMeta.title}</h1>
+              <p className="np-helper">{currentMeta.subtitle}</p>
+            </div>
+          )}
+
           <Routes>
             <Route
               path="/"
@@ -165,10 +325,7 @@ const AppLayout: React.FC = () => {
             />
             <Route path="/diagnostics" element={<Diagnostics />} />
             <Route path="/topology" element={<Topology />} />
-            <Route
-              path="/inventory"
-              element={<Inventory networkEnv={networkEnvData} />}
-            />
+            <Route path="/inventory" element={<Inventory networkEnv={networkEnvData} />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/automation" element={<Automation />} />
             <Route path="/ai-analysis" element={<AIAnalysis />} />
@@ -186,20 +343,40 @@ const AppLayout: React.FC = () => {
                 />
               }
             />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/settings"
+              element={
+                <SettingsPage
+                  backendOnline={backendOnline}
+                  gatewayLatencyMs={gatewayLatencyMs}
+                  sidebarCollapsed={collapsed}
+                  onConfigSaved={handleSettingsSaved}
+                  onRetryGateway={handleManualRefresh}
+                />
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onSyncNow={handleManualRefresh}
+        onToggleSidebar={toggleSidebar}
+      />
     </div>
   );
 };
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <AppLayout />
-    </BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
+        <AppLayout />
+      </BrowserRouter>
+    </ToastProvider>
   );
 };
 
