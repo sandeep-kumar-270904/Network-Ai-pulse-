@@ -43,22 +43,22 @@ export const Field: React.FC<FieldProps> = ({
       )}
 
       {error && (
-        <p id={feedbackId} role="alert" className="flex items-start gap-1.5 text-[13px] leading-5 text-[var(--danger)]">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+        <p id={feedbackId} role="alert" className="flex items-start gap-2 text-[13px] leading-5 text-[var(--danger)]">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-1" aria-hidden="true" />
           <span>{error}</span>
         </p>
       )}
 
       {!error && warning && (
-        <p id={feedbackId} className="flex items-start gap-1.5 text-[13px] leading-5 text-[var(--warn)]">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+        <p id={feedbackId} className="flex items-start gap-2 text-[13px] leading-5 text-[var(--warn)]">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-1" aria-hidden="true" />
           <span>{warning}</span>
         </p>
       )}
 
       {!error && success && (
-        <p id={feedbackId} aria-live="polite" className="flex items-start gap-1.5 text-[13px] leading-5 text-[var(--ok)]">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+        <p id={feedbackId} aria-live="polite" className="flex items-start gap-2 text-[13px] leading-5 text-[var(--ok)]">
+          <CheckCircle2 className="w-4 h-4 shrink-0 mt-1" aria-hidden="true" />
           <span>{success}</span>
         </p>
       )}

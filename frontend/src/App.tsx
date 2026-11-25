@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
-import { TopBar } from './components/layout/TopBar';
+import { TopBar, TimeRangeOption } from './components/layout/TopBar';
 import { CommandPalette } from './components/ui/CommandPalette';
 import { ToastProvider } from './components/ui/Toast';
+import { ThemeMode } from './components/ui/ThemeToggle';
 import { Overview } from './pages/Overview';
 import { Diagnostics } from './pages/Diagnostics';
 import { Topology } from './pages/Topology';
@@ -18,6 +19,7 @@ import { Analytics } from './pages/Analytics';
 import { Reports } from './pages/Reports';
 import { SystemInfoPage } from './pages/SystemInfo';
 import { SettingsPage, PlatformConfig } from './pages/Settings';
+import { DesignSystemPage } from './pages/DesignSystem';
 import {
   fetchHealth,
   fetchSystemInfo,
@@ -28,37 +30,39 @@ import {
 import { HealthResponse } from './types';
 
 const SIDEBAR_STORAGE_KEY = 'netpulse_sidebar_collapsed';
+const THEME_STORAGE_KEY = 'netpulse_theme';
+const TIMERANGE_STORAGE_KEY = 'netpulse_time_range';
 
 const ROUTE_META: Record<string, { section: string; page: string; title: string; subtitle: string }> = {
   '/': {
     section: 'Observability',
     page: 'Overview',
     title: 'Network overview',
-    subtitle: 'Real-time host telemetry, gateway latency, and active interface status.',
+    subtitle: 'Host telemetry, gateway latency, and active interface status.',
   },
   '/topology': {
     section: 'Observability',
     page: 'Network Topology',
     title: 'Network topology',
-    subtitle: 'Dynamic device fabric resolved from your default gateway and local ARP neighbors.',
+    subtitle: 'Device map resolved from your default gateway and local ARP table.',
   },
   '/inventory': {
     section: 'Observability',
     page: 'Inventory',
     title: 'Infrastructure inventory',
-    subtitle: 'Discovered local network peers, host adapters, and monitored probe targets.',
+    subtitle: 'Discovered local network peers, host adapters, and monitored targets.',
   },
   '/diagnostics': {
     section: 'Active Testing',
     page: 'Diagnostics',
     title: 'Network diagnostics',
-    subtitle: 'Live ICMP echo probes, TCP port handshakes, and Layer-3 path traceroutes.',
+    subtitle: 'ICMP echo probes, TCP port handshakes, and Layer-3 path traceroutes.',
   },
   '/performance': {
     section: 'Active Testing',
     page: 'Synthetic Tests',
-    title: 'Synthetic performance tests',
-    subtitle: 'Multi-stream TCP throughput, packet jitter stability bursts, and Path MTU discovery.',
+    title: 'Synthetic tests',
+    subtitle: 'Multi-stream TCP throughput, jitter stability bursts, and Path MTU checks.',
   },
   '/automation': {
     section: 'Active Testing',
@@ -70,19 +74,19 @@ const ROUTE_META: Record<string, { section: string; page: string; title: string;
     section: 'Active Testing',
     page: 'Test History',
     title: 'Test history',
-    subtitle: 'Persistent execution archive stored in the local telemetry database.',
+    subtitle: 'Execution log stored in the local telemetry database.',
   },
   '/ai-analysis': {
     section: 'Intelligence',
     page: 'Anomaly Detection',
     title: 'Anomaly detection',
-    subtitle: 'Unsupervised IsolationForest scoring across recorded latency and packet loss telemetry.',
+    subtitle: 'IsolationForest scoring across recorded latency and packet loss telemetry.',
   },
   '/alerts': {
     section: 'Intelligence',
     page: 'Alerts & Events',
     title: 'Alerts and events',
-    subtitle: 'Operational event stream for packet loss, latency thresholds, and scheduled runs.',
+    subtitle: 'Event stream for packet loss, latency thresholds, and scheduled runs.',
   },
   '/analytics': {
     section: 'Intelligence',
@@ -94,23 +98,49 @@ const ROUTE_META: Record<string, { section: string; page: string; title: string;
     section: 'Intelligence',
     page: 'Reports',
     title: 'Technical reports',
-    subtitle: 'Export raw CSV latency datasets and JSON infrastructure audits.',
+    subtitle: 'Export CSV latency datasets and JSON infrastructure audits.',
   },
   '/system': {
     section: 'System',
     page: 'System Info',
     title: 'System information',
-    subtitle: 'Host hardware, operating system environment, and network interface specifications.',
+    subtitle: 'Host hardware, operating system environment, and network interfaces.',
   },
   '/settings': {
     section: 'Settings',
     page: 'Platform',
     title: 'Platform settings',
-    subtitle: 'Configure the API gateway connection, telemetry polling cadence, and safety policies.',
+    subtitle: 'Configure the API gateway connection, polling cadence, and safety policies.',
+  },
+  '/design-system': {
+    section: 'System',
+    page: 'UI Components',
+    title: 'Component gallery',
+    subtitle: 'Shared design tokens, interactive states, and accessible primitives in dark and light themes.',
   },
 };
 
 const AppLayout: React.FC = () => {
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    try {
+      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {
+      // Ignore storage restrictions
+    }
+    return 'dark';
+  });
+
+  const [timeRange, setTimeRange] = useState<TimeRangeOption>(() => {
+    try {
+      const saved = window.localStorage.getItem(TIMERANGE_STORAGE_KEY) as TimeRangeOption | null;
+      if (saved && ['15m', '1h', '6h', '24h', '7d'].includes(saved)) return saved;
+    } catch {
+      // Ignore
+    }
+    return '1h';
+  });
+
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
@@ -148,6 +178,28 @@ const AppLayout: React.FC = () => {
     title: 'NetPulse AI',
     subtitle: 'Network performance intelligence platform.',
   };
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  const handleTimeRangeChange = useCallback((range: TimeRangeOption) => {
+    setTimeRange(range);
+    try {
+      window.localStorage.setItem(TIMERANGE_STORAGE_KEY, range);
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   const toggleSidebar = useCallback(() => {
     setCollapsed((prev) => {
@@ -191,7 +243,6 @@ const AppLayout: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [pollTelemetry, pollingSec]);
 
-  // Global keyboard shortcuts: Cmd/Ctrl+K (Palette), [ (Toggle sidebar)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -231,7 +282,7 @@ const AppLayout: React.FC = () => {
   const isSettingsPage = location.pathname === '/settings';
 
   return (
-    <div className="min-h-screen np-ambient-canvas text-[var(--text)] flex">
+    <div className="min-h-screen np-canvas text-[var(--text)] flex">
       <a href="#main-content" className="np-skip-link">
         Skip to main content
       </a>
@@ -248,7 +299,7 @@ const AppLayout: React.FC = () => {
 
       <div
         className={`flex-1 flex flex-col min-h-screen min-w-0 transition-[margin-left] duration-[var(--dur-layout)] ease-[var(--ease-out)] ${
-          collapsed ? 'md:ml-[72px]' : 'md:ml-[264px]'
+          collapsed ? 'lg:ml-[72px]' : 'lg:ml-[264px]'
         }`}
       >
         <TopBar
@@ -258,26 +309,34 @@ const AppLayout: React.FC = () => {
           gatewayLatencyMs={gatewayLatencyMs}
           backendOnline={backendOnline}
           lastSyncAt={lastSyncAt}
+          pollingSec={pollingSec}
+          timeRange={timeRange}
+          onTimeRangeChange={handleTimeRangeChange}
           onSyncNow={handleManualRefresh}
           isSyncing={isSyncing}
           onOpenMobileMenu={() => setMobileOpen(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
 
-        <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 sm:px-6 lg:px-8 focus:outline-none">
-          {/* Gateway Offline Banner */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 w-full max-w-[1200px] mx-auto px-4 py-6 sm:px-6 lg:px-8 focus:outline-none"
+        >
           {!backendOnline && (
             <div
               role="alert"
-              className="max-w-[1040px] mx-auto mb-6 p-4 rounded-[var(--radius-card)] bg-[var(--danger-soft)] border border-[var(--danger)]/35 flex flex-wrap items-center justify-between gap-3"
+              className="mb-6 p-4 rounded-[var(--radius-card)] bg-[var(--danger-soft)] border border-[var(--danger)]/35 flex flex-wrap items-center justify-between gap-3"
             >
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0 mt-0.5" aria-hidden="true" />
+                <AlertTriangle className="w-5 h-5 text-[var(--danger)] shrink-0 mt-1" aria-hidden="true" />
                 <div>
                   <p className="text-[14px] font-semibold text-[var(--text)]">
                     Backend gateway unreachable
                   </p>
                   <p className="text-[13px] text-[var(--text-secondary)]">
-                    Unable to reach <span className="font-mono">{gatewayUrl}</span>. Check that the local service is running.
+                    Unable to reach <span className="font-mono">{gatewayUrl}</span>. Check that the service is running.
                   </p>
                 </div>
               </div>
@@ -285,24 +344,23 @@ const AppLayout: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleManualRefresh}
-                  className="h-9 px-3 rounded-[var(--radius-control)] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] text-[13px] font-medium text-[var(--text)] hover:bg-[var(--bg-hover)] inline-flex items-center gap-1.5"
+                  className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[13px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                   <span>Retry</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/diagnostics')}
-                  className="h-9 px-3 rounded-[var(--radius-control)] text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] inline-flex items-center gap-1.5"
+                  className="h-10 px-3 rounded-[var(--radius-control)] text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)] inline-flex items-center gap-2"
                 >
-                  <Activity className="w-3.5 h-3.5" />
+                  <Activity className="w-4 h-4" />
                   <span>View diagnostics</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Single H1 Page Header (Settings handles its own 1040px centered layout including anchor nav) */}
           {!isSettingsPage && (
             <div className="mb-6 space-y-1">
               <h1 className="np-page-title">{currentMeta.title}</h1>
@@ -355,6 +413,10 @@ const AppLayout: React.FC = () => {
                 />
               }
             />
+            <Route
+              path="/design-system"
+              element={<DesignSystemPage theme={theme} onToggleTheme={toggleTheme} />}
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -365,6 +427,7 @@ const AppLayout: React.FC = () => {
         onClose={() => setPaletteOpen(false)}
         onSyncNow={handleManualRefresh}
         onToggleSidebar={toggleSidebar}
+        onToggleTheme={toggleTheme}
       />
     </div>
   );

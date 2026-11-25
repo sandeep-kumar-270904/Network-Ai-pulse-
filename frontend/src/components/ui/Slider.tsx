@@ -124,26 +124,22 @@ export const Slider: React.FC<SliderProps> = ({
 
   return (
     <div className={`space-y-3 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}>
-      <div className="flex items-center gap-4">
-        {/* Track Area */}
-        <div className="flex-1 pt-2 pb-5 relative select-none">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1 pt-2 pb-6 relative select-none">
           <div
             ref={trackRef}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            className="relative h-6 flex items-center cursor-pointer touch-none"
+            className="relative h-8 flex items-center cursor-pointer touch-none"
           >
-            {/* Unfilled Track */}
-            <div className="w-full h-[6px] rounded-[var(--radius-pill)] bg-[var(--border-control)] relative overflow-hidden">
-              {/* Filled Track */}
+            <div className="w-full h-2 rounded-[var(--radius-pill)] bg-[var(--border-control)] relative overflow-hidden">
               <div
                 ref={fillRef}
                 className="h-full bg-[var(--accent)] rounded-[var(--radius-pill)] transition-[width] duration-[var(--dur-micro)] ease-[var(--ease-out)]"
               />
             </div>
 
-            {/* Interactive Thumb */}
             <div
               ref={thumbRef}
               role="slider"
@@ -156,17 +152,16 @@ export const Slider: React.FC<SliderProps> = ({
               onKeyDown={handleKeyDown}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
-              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--text)] border-2 border-[var(--accent)] transition-shadow duration-[var(--dur-micro)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-2 ${
+              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--surface-1)] border-2 border-[var(--accent)] transition-shadow duration-[var(--dur-micro)] ${
                 dragging || focused
                   ? 'ring-4 ring-[var(--accent-ring)] scale-110'
                   : 'hover:ring-4 hover:ring-[var(--accent-soft)]'
               }`}
             >
-              {/* Drag / Focus Value Bubble */}
               {(dragging || focused) && (
                 <span
                   aria-hidden="true"
-                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-0.5 rounded-[var(--radius-control)] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] shadow-[var(--shadow-popover)] text-[12px] font-mono font-medium text-[var(--text)] whitespace-nowrap"
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] shadow-[var(--shadow-popover)] text-[12px] font-mono font-medium text-[var(--text)] whitespace-nowrap"
                 >
                   {value} {unit}
                 </span>
@@ -174,21 +169,27 @@ export const Slider: React.FC<SliderProps> = ({
             </div>
           </div>
 
-          {/* Mathematical Tick Marks */}
           {ticks.length > 0 && (
-            <div className="relative h-5 mt-1" aria-hidden="true">
-              {ticks.map((tick) => {
+            <div className="relative h-6 mt-1" aria-hidden="true">
+              {ticks.map((tick, idx) => {
                 const isActive = value === tick.value;
+                const isFirst = idx === 0;
+                const isLast = idx === ticks.length - 1;
+                const alignClass = isFirst
+                  ? 'translate-x-0 items-start'
+                  : isLast
+                  ? '-translate-x-full items-end'
+                  : '-translate-x-1/2 items-center';
                 return (
                   <div
                     key={tick.value}
                     ref={(el) => {
                       tickRefs.current[tick.value] = el;
                     }}
-                    className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+                    className={`absolute top-0 flex flex-col ${alignClass}`}
                   >
                     <span
-                      className={`w-px h-1.5 mb-1 ${
+                      className={`w-px h-2 mb-1 ${
                         isActive ? 'bg-[var(--accent)]' : 'bg-[var(--border-control)]'
                       }`}
                     />
@@ -196,13 +197,20 @@ export const Slider: React.FC<SliderProps> = ({
                       type="button"
                       tabIndex={-1}
                       onClick={() => onChange(tick.value)}
-                      className={`text-[11px] font-mono leading-4 transition-colors ${
+                      className={`text-[12px] font-mono leading-4 whitespace-nowrap transition-colors ${
                         isActive
                           ? 'text-[var(--accent)] font-semibold'
                           : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                       }`}
                     >
-                      {tick.label ?? `${tick.value}${unit}`}
+                      {tick.label && tick.label !== `${tick.value}${unit}` ? (
+                        <>
+                          <span className="hidden sm:inline">{tick.label}</span>
+                          <span className="sm:hidden">{tick.value}{unit}</span>
+                        </>
+                      ) : (
+                        `${tick.value}${unit}`
+                      )}
                     </button>
                   </div>
                 );
@@ -211,16 +219,15 @@ export const Slider: React.FC<SliderProps> = ({
           )}
         </div>
 
-        {/* Precision Numeric Stepper */}
-        <div className="flex items-center h-11 rounded-[var(--radius-control)] bg-[var(--bg-elev-2)] border border-[var(--border)] shrink-0">
+        <div className="flex items-center h-10 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] shrink-0 self-start sm:self-center">
           <button
             type="button"
             onClick={() => onChange(clamp(value - step, min, max))}
             disabled={disabled || value <= min}
             aria-label={`Decrease ${ariaLabel}`}
-            className="w-10 h-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] disabled:opacity-40 rounded-l-[var(--radius-control)] transition-colors"
+            className="w-10 h-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-40 rounded-l-[var(--radius-control)] transition-colors"
           >
-            <Minus className="w-3.5 h-3.5" />
+            <Minus className="w-4 h-4" />
           </button>
           <label htmlFor={inputId} className="sr-only">
             {ariaLabel} numeric input
@@ -246,14 +253,13 @@ export const Slider: React.FC<SliderProps> = ({
             onClick={() => onChange(clamp(value + step, min, max))}
             disabled={disabled || value >= max}
             aria-label={`Increase ${ariaLabel}`}
-            className="w-10 h-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] disabled:opacity-40 rounded-r-[var(--radius-control)] transition-colors"
+            className="w-10 h-full flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-40 rounded-r-[var(--radius-control)] transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Endpoint Labels */}
       {(minLabel || maxLabel) && (
         <div className="flex justify-between text-[12px] leading-4 text-[var(--text-muted)] pr-0 sm:pr-[148px]">
           <span>{minLabel}</span>

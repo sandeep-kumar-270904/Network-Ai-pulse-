@@ -115,17 +115,6 @@ export const Reports: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#0D192B] border border-[#203750]">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#EAF3FF] font-mono flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#22D3EE]" /> Technical Report & Telemetry Export Generator
-          </h2>
-          <p className="text-xs text-[#91A7C0] mt-0.5">
-            Real-time export of executive summaries, raw diagnostic test records, and dynamic topology inventories.
-          </p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {reportTemplates.map((tpl) => (
           <div

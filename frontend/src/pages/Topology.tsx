@@ -5,25 +5,6 @@ import { TopologyGraph } from '../components/topology/TopologyGraph';
 export const Topology: React.FC = () => {
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#0D192B] border border-[#203750]">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#EAF3FF] font-mono flex items-center gap-2">
-            <Network className="w-4 h-4 text-[#22D3EE]" /> Interactive Network Topology
-          </h2>
-          <p className="text-xs text-[#91A7C0] mt-0.5">
-            Real-time visual mapping of edge gateways, aggregation switches, core servers, and test probes.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="px-2 py-1 rounded bg-[#111E30] text-[#00D69A] border border-[#203750]">
-            6 NODES
-          </span>
-          <span className="px-2 py-1 rounded bg-[#111E30] text-[#22D3EE] border border-[#203750]">
-            5 EDGES
-          </span>
-        </div>
-      </div>
-
       <div className="p-4 rounded-xl bg-[#0D192B] border border-[#203750] space-y-4">
         <TopologyGraph />
       </div>

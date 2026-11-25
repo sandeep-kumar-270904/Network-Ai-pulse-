@@ -75,28 +75,17 @@ export const Analytics: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#0D192B] border border-[#203750]">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#EAF3FF] font-mono flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#22D3EE]" /> Real-Time Performance Analytics & Percentiles
-          </h2>
-          <p className="text-xs text-[#91A7C0] mt-0.5">
-            Live statistical distribution (P50, P95, P99) computed directly from SQLite diagnostic executions.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span className="px-2.5 py-1 rounded bg-[#111E30] text-[#00D69A] border border-[#00D69A]/30">
-            {analytics?.total_tests ?? 0} RECORDED SAMPLES
-          </span>
-          <button
-            onClick={loadAnalytics}
-            className="p-1.5 rounded bg-[#111E30] border border-[#203750] text-[#91A7C0] hover:text-[#EAF3FF]"
-            title="Refresh Analytics"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-[13px] font-mono text-[var(--text-secondary)]">
+          {analytics?.total_tests ?? 0} recorded samples
+        </span>
+        <button
+          onClick={loadAnalytics}
+          className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text)] inline-flex items-center gap-2 text-[13px]"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Percentile KPI Row */}

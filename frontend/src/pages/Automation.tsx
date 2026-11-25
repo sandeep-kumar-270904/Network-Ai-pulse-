@@ -74,33 +74,13 @@ export const Automation: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Operational Banner */}
-      <div className="p-4 rounded-xl bg-[#111E30] border border-[#00D69A]/40 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-[#00D69A]/10 text-[#00D69A] flex-shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-                Autonomous Background Test Scheduler
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00D69A]/20 text-[#00D69A] uppercase font-semibold">
-                FASTAPI WORKER ACTIVE
-              </span>
-            </div>
-            <p className="text-xs text-[#91A7C0] mt-1">
-              Enable scheduled probes to automatically execute ICMP or TCP tests in the background on your configured interval and log metrics to SQLite.
-            </p>
-          </div>
-        </div>
-
+      <div className="flex justify-end">
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#287EFF] hover:bg-[#168BFF] text-white text-xs font-mono font-semibold"
+          className="h-10 flex items-center gap-2 px-4 rounded-[var(--radius-control)] bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-ink)] text-[13px] font-semibold"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Schedule</span>
+          <Plus className="w-4 h-4" />
+          <span>New schedule</span>
         </button>
       </div>
 

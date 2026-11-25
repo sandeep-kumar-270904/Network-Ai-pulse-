@@ -1,5 +1,11 @@
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
+
+interface KpiDelta {
+  direction: 'up' | 'down' | 'flat';
+  value: string;
+  sentiment?: 'good' | 'bad' | 'neutral';
+}
 
 interface KpiCardProps {
   label: string;
@@ -8,10 +14,9 @@ interface KpiCardProps {
   subtext?: string;
   icon?: LucideIcon;
   status?: 'nominal' | 'warning' | 'critical' | 'neutral';
-  trend?: {
-    direction: 'up' | 'down' | 'flat';
-    value: string;
-  };
+  delta?: KpiDelta;
+  trend?: KpiDelta;
+  sparkline?: number[];
 }
 
 export const KpiCard: React.FC<KpiCardProps> = ({
@@ -21,70 +26,121 @@ export const KpiCard: React.FC<KpiCardProps> = ({
   subtext,
   icon: Icon,
   status = 'neutral',
+  delta,
   trend,
+  sparkline,
 }) => {
-  const statusColors = {
+  const effectiveDelta = delta || trend;
+
+  const toneStyle = {
     nominal: {
-      border: 'border-[#00D69A]/30',
-      text: 'text-[#00D69A]',
-      bg: 'bg-[#00D69A]/10',
-      glow: 'shadow-green-500/10',
+      accentBar: 'bg-[var(--ok)]',
+      iconBox: 'bg-[var(--ok-soft)] text-[var(--ok)]',
+      sparkColor: 'var(--ok)',
     },
     warning: {
-      border: 'border-[#F5B82E]/30',
-      text: 'text-[#F5B82E]',
-      bg: 'bg-[#F5B82E]/10',
-      glow: 'shadow-amber-500/10',
+      accentBar: 'bg-[var(--warn)]',
+      iconBox: 'bg-[var(--warn-soft)] text-[var(--warn)]',
+      sparkColor: 'var(--warn)',
     },
     critical: {
-      border: 'border-[#FF475F]/30',
-      text: 'text-[#FF475F]',
-      bg: 'bg-[#FF475F]/10',
-      glow: 'shadow-red-500/10',
+      accentBar: 'bg-[var(--danger)]',
+      iconBox: 'bg-[var(--danger-soft)] text-[var(--danger)]',
+      sparkColor: 'var(--danger)',
     },
     neutral: {
-      border: 'border-[#203750]',
-      text: 'text-[#22D3EE]',
-      bg: 'bg-[#111E30]',
-      glow: '',
+      accentBar: 'bg-[var(--border-strong)]',
+      iconBox: 'bg-[var(--surface-2)] text-[var(--text-secondary)]',
+      sparkColor: 'var(--accent)',
     },
   }[status];
 
+  const deltaToneClass = (() => {
+    if (!effectiveDelta) return '';
+    if (effectiveDelta.sentiment === 'good') return 'text-[var(--ok)]';
+    if (effectiveDelta.sentiment === 'bad') return 'text-[var(--danger)]';
+    if (effectiveDelta.sentiment === 'neutral') return 'text-[var(--text-secondary)]';
+    return effectiveDelta.direction === 'up'
+      ? 'text-[var(--ok)]'
+      : effectiveDelta.direction === 'down'
+      ? 'text-[var(--danger)]'
+      : 'text-[var(--text-secondary)]';
+  })();
+
+  const renderSparkline = () => {
+    if (!sparkline || sparkline.length < 2) return null;
+    const min = Math.min(...sparkline);
+    const max = Math.max(...sparkline);
+    const span = max - min || 1;
+    const width = 84;
+    const height = 24;
+    const points = sparkline
+      .map((val, idx) => {
+        const x = (idx / (sparkline.length - 1)) * width;
+        const y = height - ((val - min) / span) * (height - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+
+    return (
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        aria-hidden="true"
+        className="shrink-0 overflow-visible"
+      >
+        <polyline
+          fill="none"
+          stroke={toneStyle.sparkColor}
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={points}
+        />
+      </svg>
+    );
+  };
+
   return (
-    <div
-      className={`p-4 rounded-xl bg-[#13243A] border ${statusColors.border} shadow-sm ${statusColors.glow} flex flex-col justify-between transition-all hover:border-[#287EFF]/50`}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-[#91A7C0] tracking-wider uppercase font-mono">
+    <div className="np-card p-4 flex flex-col justify-between gap-3 relative overflow-hidden">
+      <div className={`absolute top-0 left-0 right-0 h-[2px] ${toneStyle.accentBar}`} aria-hidden="true" />
+
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[13px] leading-5 font-medium text-[var(--text-secondary)]">
           {label}
         </span>
         {Icon && (
-          <div className={`p-1.5 rounded-lg ${statusColors.bg} ${statusColors.text}`}>
-            <Icon className="w-4 h-4" />
+          <div className={`w-8 h-8 rounded-[var(--radius-control)] flex items-center justify-center shrink-0 ${toneStyle.iconBox}`}>
+            <Icon className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
           </div>
         )}
       </div>
 
-      <div className="my-2 flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold tracking-tight font-mono text-[#EAF3FF]">
-          {value}
-        </span>
-        {unit && <span className="text-xs text-[#91A7C0] font-mono">{unit}</span>}
+      <div className="flex items-end justify-between gap-3">
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-[28px] leading-9 font-semibold tracking-[-0.02em] font-mono tabular-nums text-[var(--text)] transition-colors duration-[var(--dur-state)]">
+            {value}
+          </span>
+          {unit && (
+            <span className="text-[12px] leading-4 font-mono text-[var(--text-muted)]">
+              {unit}
+            </span>
+          )}
+        </div>
+        {renderSparkline()}
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-[#647C96]">
-        <span>{subtext || 'Live measurement'}</span>
-        {trend && (
-          <span
-            className={`font-mono font-medium ${
-              trend.direction === 'up'
-                ? 'text-[#00D69A]'
-                : trend.direction === 'down'
-                ? 'text-[#FF475F]'
-                : 'text-[#91A7C0]'
-            }`}
-          >
-            {trend.direction === 'up' ? '▲' : trend.direction === 'down' ? '▼' : '—'} {trend.value}
+      <div className="flex items-center justify-between gap-2 text-[12px] leading-4 text-[var(--text-muted)]">
+        <span className="truncate">{subtext || 'Active measurement'}</span>
+        {effectiveDelta && (
+          <span className={`font-mono font-medium shrink-0 ${deltaToneClass}`}>
+            {effectiveDelta.direction === 'up'
+              ? '+'
+              : effectiveDelta.direction === 'down'
+              ? '-'
+              : ''}
+            {effectiveDelta.value}
           </span>
         )}
       </div>

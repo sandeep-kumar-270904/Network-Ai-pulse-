@@ -1,0 +1,17 @@
+# Changelog — NetPulse AI UI & Design System Overhaul
+
+## Phase 1 — Design System Foundation, App Shell & Shared Primitives
+- **Audit completed across 38 source files:** Identified 34 hard-coded hex colors, 104 sub-12px typography occurrences (`9px`, `10px`, `11px`), off-grid spacing tokens, 11 disparate border radius values, duplicated KPI/table/modal markup, and 10 redundant page-title banner cards.
+- **Dual-theme token system (`globals.css`):** Implemented a 4-step near-neutral dark surface ladder (`#090c12` → `#10151f` → `#171e2c` → `#1f283a`) and matching light theme (`#f6f8fb` → `#ffffff` → `#edf1f7` → `#e2e8f2`) with WCAG AA/AAA verified text (`>= 5.17:1`) and UI control boundary (`>= 3.25:1`) contrast. Removed decorative radial glows and neon box shadows.
+- **Typography & scale enforcement:** Standardized on Inter (UI) and JetBrains Mono (`tabular-nums` data only) across the strict `12 / 13 / 14 / 16 / 20 / 28` px scale with zero text below `12px`, sentence-case headings and navigation groups, and 4-point spacing (`4/8/12/16/24/32/48/64`) with three radii (`8px`, `12px`, `999px`).
+- **Shared component library (`components/ui/*` + `KpiCard`):** Built and standardized `Button` (primary, secondary, ghost, destructive), `TextInput`, `Select`, `Switch`, `Tabs`, `StatusChip` (color + icon + text), `Card`, `DataTable` (sticky header, sortable columns, right-aligned numeric columns, comfortable/compact density), `Tooltip`, `Toast`, `Dialog` (focus-trapped confirmation), `SideDrawer`, `Skeleton`, `EmptyState`, `ErrorState`, `KpiCard` (value, unit, delta, SVG sparkline, threshold color), `CopyButton`, and `ThemeToggle`.
+- **App shell rebuild (`Sidebar`, `TopBar`, `CommandPalette`, `App.tsx`):** Made sidebar scrollable with active-section highlighting, persisted collapse state (`localStorage` + `[`), and sentence-case groups; upgraded `TopBar` with global status, `15m–7d` time-range selector, live freshness/stale warning indicator, `Sync`, and theme switcher; unified `<main>` max-width (`1200px`) and padding across all views.
+- **Removed redundant title banners:** Removed 10 repeated banner cards across `Diagnostics`, `Performance`, `Automation`, `AIAnalysis`, `Alerts`, `Analytics`, `History`, `Reports`, `SystemInfo`, and `Topology` that duplicated the page `<h1>` title.
+- **Component gallery (`/design-system`):** Added a dedicated gallery page displaying every shared component and interactive state across both Dark and Light themes.
+- **Visual QA defects resolved (after live desktop/tablet/mobile inspection):**
+  - Portaled `Dialog`, `SideDrawer`, and `CommandPalette` to `document.body` so overlays always cover sticky `TopBar` and `Sidebar` headers.
+  - Switched `Sidebar` breakpoint to `lg` (`>=1024px`) and used overlay drawer below `1024px`, eliminating the `111.2px` tablet (`768px`) horizontal overflow and clipped TopBar controls.
+  - Replaced native `<select>` elements in `TopBar` and `Select.tsx` with an accessible custom listbox (`40px`), fixing double-arrow rendering and top-aligned text.
+  - Added explicit `sentiment` (`good` / `bad` / `neutral`) to `KpiCard` deltas so `-0.2ms` latency shows green and `+1.5%` loss shows red.
+  - Fixed `Button` loading opacity in Light theme (`opacity-90` instead of `opacity-50`), TopBar warning label (`Slow · <ms>` instead of `Healthy`), `Slider` left-aligned min tick (`2s` vs `Default` overlap), `Tabs` mobile `flex-wrap`, and `Diagnostics` primary CTA token (`--accent`).
+

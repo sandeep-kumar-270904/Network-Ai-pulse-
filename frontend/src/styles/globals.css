@@ -3,70 +3,126 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Color System — Deep-navy neutral + single cyan accent */
-    --bg: #070b14;
-    --bg-elev-1: #0d1424;
-    --bg-elev-2: #111a2e;
-    --bg-hover: #16213a;
-    --border: #1c2742;
-    --border-strong: #2a3a5e;
-    --border-control: #52658f;
+  :root,
+  [data-theme='dark'] {
+    color-scheme: dark;
 
-    --text: #e8eefb;
-    --text-secondary: #b4c0d8;
-    --text-muted: #8b99b5;
+    /* 4-step near-neutral dark surface ladder */
+    --bg: #090c12;
+    --surface-1: #10151f;
+    --surface-2: #171e2c;
+    --surface-3: #1f283a;
 
+    /* Semantic aliases */
+    --bg-elev-1: var(--surface-1);
+    --bg-elev-2: var(--surface-2);
+    --bg-hover: var(--surface-3);
+    --surface-backdrop: rgba(9, 12, 18, 0.84);
+
+    /* Subtle hairline borders & WCAG >= 3:1 interactive control boundaries */
+    --border: #20293d;
+    --border-strong: #303d59;
+    --border-control: #6376a0;
+
+    /* Typography colors (all >= 4.5:1 on surfaces) */
+    --text: #edf2fb;
+    --text-secondary: #b6c2d9;
+    --text-muted: #8d9bb5;
+
+    /* Single brand accent (Cyan) */
     --accent: #22d3ee;
     --accent-hover: #4fe0f5;
-    --accent-ink: #04111a;
-    --accent-soft: rgba(34, 211, 238, 0.12);
+    --accent-ink: #04131a;
+    --accent-soft: rgba(34, 211, 238, 0.14);
     --accent-ring: rgba(34, 211, 238, 0.45);
 
-    /* Semantic Status Colors ONLY */
+    /* Status-only palette (green, amber, red, blue) */
     --ok: #34d399;
-    --ok-soft: rgba(52, 211, 153, 0.12);
+    --ok-soft: rgba(52, 211, 153, 0.14);
     --warn: #fbbf24;
-    --warn-soft: rgba(251, 191, 36, 0.12);
+    --warn-soft: rgba(251, 191, 36, 0.14);
     --danger: #f87171;
-    --danger-soft: rgba(248, 113, 113, 0.12);
+    --danger-soft: rgba(248, 113, 113, 0.14);
+    --info: #60a5fa;
+    --info-soft: rgba(96, 165, 250, 0.14);
 
-    /* Typography */
+    /* Elevation (depth via surface tone + subtle shadow, zero neon glow) */
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
+    --shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.48);
+
+    /* Typography families */
     --font-ui: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-    /* Spacing Scale (4px base) */
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 20px;
-    --space-6: 24px;
-    --space-8: 32px;
-    --space-10: 40px;
-    --space-14: 56px;
-    --space-18: 72px;
+    /* 4-point spacing scale ONLY: 4, 8, 12, 16, 24, 32, 48, 64 */
+    --space-4: 4px;
+    --space-8: 8px;
+    --space-12: 12px;
+    --space-16: 16px;
+    --space-24: 24px;
+    --space-32: 32px;
+    --space-48: 48px;
+    --space-64: 64px;
 
-    /* Radii */
+    /* Three corner radii ONLY */
     --radius-control: 8px;
     --radius-card: 12px;
-    --radius-dialog: 16px;
+    --radius-dialog: 12px;
     --radius-pill: 999px;
-
-    /* Elevation */
-    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.28);
-    --shadow-popover: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 16px 40px rgba(0, 0, 0, 0.55);
 
     /* Motion */
     --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-    --dur-micro: 120ms;
+    --dur-micro: 150ms;
     --dur-state: 200ms;
-    --dur-layout: 320ms;
+    --dur-panel: 260ms;
+    --dur-layout: 260ms;
 
-    /* Layout Dimensions */
+    /* Layout constants */
     --sidebar-width: 264px;
     --sidebar-rail-width: 72px;
     --topbar-height: 64px;
+    --content-max-width: 1200px;
+  }
+
+  [data-theme='light'] {
+    color-scheme: light;
+
+    /* 4-step near-neutral light surface ladder */
+    --bg: #f6f8fb;
+    --surface-1: #ffffff;
+    --surface-2: #edf1f7;
+    --surface-3: #e2e8f2;
+
+    --bg-elev-1: var(--surface-1);
+    --bg-elev-2: var(--surface-2);
+    --bg-hover: var(--surface-3);
+    --surface-backdrop: rgba(246, 248, 251, 0.88);
+
+    --border: #dce3ee;
+    --border-strong: #c1cce0;
+    --border-control: #64748b;
+
+    --text: #0f172a;
+    --text-secondary: #334155;
+    --text-muted: #526077;
+
+    --accent: #155e75;
+    --accent-hover: #0e7490;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(21, 94, 117, 0.12);
+    --accent-ring: rgba(21, 94, 117, 0.35);
+
+    --ok: #065f46;
+    --ok-soft: rgba(6, 95, 70, 0.12);
+    --warn: #92400e;
+    --warn-soft: rgba(146, 64, 14, 0.12);
+    --danger: #b91c1c;
+    --danger-soft: rgba(185, 28, 28, 0.12);
+    --info: #1d4ed8;
+    --info-soft: rgba(29, 78, 216, 0.12);
+
+    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-popover: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
   }
 
   html {
@@ -87,12 +143,15 @@
     overflow-x: hidden;
   }
 
-  code, pre, kbd, .font-mono, .np-mono {
+  code,
+  pre,
+  kbd,
+  .font-mono,
+  .np-mono {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
 
-  /* Universal Keyboard Focus Ring */
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
@@ -103,9 +162,9 @@
 .np-skip-link {
   position: fixed;
   top: -100px;
-  left: var(--space-4);
+  left: var(--space-16);
   z-index: 100;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-8) var(--space-16);
   border-radius: var(--radius-control);
   background: var(--accent);
   color: var(--accent-ink);
@@ -116,26 +175,29 @@
 }
 
 .np-skip-link:focus {
-  top: var(--space-4);
+  top: var(--space-16);
 }
 
-/* Subtle single ambient top-right glow */
-.np-ambient-canvas {
+/* Calm surface canvas (zero decorative glows or gradients) */
+.np-canvas {
   background-color: var(--bg);
-  background-image: radial-gradient(
-    720px 420px at 92% 0%,
-    rgba(34, 211, 238, 0.065),
-    transparent 70%
-  );
-  background-repeat: no-repeat;
 }
 
-/* Typography Semantic Classes */
+/* Typography scale: 12 / 13 / 14 / 16 / 20 / 28 (nothing < 12px) */
 .np-page-title {
   font-size: 28px;
   line-height: 36px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.np-kpi-value {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
@@ -162,12 +224,10 @@
   max-width: 65ch;
 }
 
-.np-eyebrow {
-  font-size: 11px;
+.np-caption {
+  font-size: 12px;
   line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -179,22 +239,27 @@
   font-weight: 500;
 }
 
-/* Card & Surface Classes */
+/* Surface elevation classes (depth via surface tone, minimal borders) */
 .np-card {
-  background-color: var(--bg-elev-1);
+  background-color: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }
 
+.np-surface-inset {
+  background-color: var(--surface-2);
+  border-radius: var(--radius-control);
+}
+
 .np-popover {
-  background-color: var(--bg-elev-1);
+  background-color: var(--surface-1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-popover);
 }
 
-/* Thin Custom Scrollbar */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -213,7 +278,7 @@
   background: var(--border-control);
 }
 
-/* Skeleton Shimmer */
+/* Skeleton shimmer */
 @keyframes np-shimmer {
   0% {
     transform: translateX(-100%);
@@ -226,7 +291,7 @@
 .np-skeleton {
   position: relative;
   overflow: hidden;
-  background-color: var(--bg-elev-2);
+  background-color: var(--surface-2);
   border-radius: var(--radius-control);
 }
 
@@ -234,36 +299,30 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(232, 238, 251, 0.06),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(141, 155, 181, 0.14), transparent);
   animation: np-shimmer 1.6s infinite;
 }
 
-/* Degraded Status Pulse (ONLY used when backend is degraded/offline) */
-@keyframes np-status-pulse {
-  0%, 100% {
+/* Soft pulse for live / degraded indicators */
+@keyframes np-soft-pulse {
+  0%,
+  100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
     opacity: 0.45;
-    transform: scale(1.25);
   }
 }
 
-.np-pulse-degraded {
-  animation: np-status-pulse 1.8s var(--ease-out) infinite;
+.np-pulse-soft {
+  animation: np-soft-pulse 2s var(--ease-out) infinite;
 }
 
-/* Reduced Motion Respect */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-micro: 0.01ms;
     --dur-state: 0.01ms;
+    --dur-panel: 0.01ms;
     --dur-layout: 0.01ms;
   }
 
@@ -272,12 +331,11 @@
   }
 
   .np-skeleton::after,
-  .np-pulse-degraded {
+  .np-pulse-soft {
     animation: none;
   }
 }
 
-/* Windows / OS High Contrast Forced-Colors Support */
 @media (forced-colors: active) {
   .np-card,
   .np-popover {

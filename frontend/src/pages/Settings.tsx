@@ -425,7 +425,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   };
 
   return (
-    <div className="max-w-[1040px] mx-auto pb-28">
+    <div className="w-full pb-28">
       {/* Page Title & Local Anchor Navigation */}
       <div className="mb-6 space-y-4">
         <div className="space-y-1">
@@ -561,7 +561,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           type="button"
                           onClick={handleTestConnection}
                           disabled={readOnlyMode || connTestState === 'testing' || Boolean(urlValidation.error)}
-                          className="h-8 px-3 rounded-[6px] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg-hover)] disabled:opacity-50 inline-flex items-center gap-1.5 transition-colors"
+                          className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
                         >
                           {connTestState === 'testing' ? (
                             <>
@@ -571,7 +571,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                           ) : connTestState === 'error' ? (
                             <span>Retry</span>
                           ) : (
-                            <span>Test connection</span>
+                            <>
+                              <span className="hidden sm:inline">Test connection</span>
+                              <span className="sm:hidden">Test</span>
+                            </>
                           )}
                         </button>
                       }
@@ -705,7 +708,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 size="sm"
                 tone={backendOnline ? 'ok' : 'danger'}
                 label={backendOnline ? 'Online' : 'Offline'}
-                pulseWhenDegraded
+                pulseWhenLiveOrDegraded={!backendOnline}
               />
             </div>
 
@@ -769,17 +772,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           <details className="np-card p-4 group">
             <summary className="text-[12px] font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] cursor-pointer select-none flex items-center justify-between list-none">
               <span>Preview UI states</span>
-              <span className="font-mono text-[11px]">Inspect</span>
+              <span className="font-mono text-[12px]">Inspect</span>
             </summary>
             <div className="pt-3 mt-3 border-t border-[var(--border)] space-y-2 text-[12px]">
               <button
                 type="button"
                 onClick={triggerLoadingPreview}
-                className="w-full h-9 px-3 rounded-[var(--radius-control)] bg-[var(--bg-elev-2)] border border-[var(--border)] hover:bg-[var(--bg-hover)] text-left text-[var(--text-secondary)]"
+                className="w-full h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] hover:bg-[var(--surface-3)] text-left text-[var(--text-secondary)]"
               >
                 Show loading skeleton (1.2s)
               </button>
-              <label className="flex items-center justify-between h-9 px-3 rounded-[var(--radius-control)] bg-[var(--bg-elev-2)] border border-[var(--border)] cursor-pointer">
+              <label className="flex items-center justify-between h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
                 <span className="text-[var(--text-secondary)]">Read-only permission mode</span>
                 <input
                   type="checkbox"
@@ -788,7 +791,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                   className="accent-[var(--accent)]"
                 />
               </label>
-              <label className="flex items-center justify-between h-9 px-3 rounded-[var(--radius-control)] bg-[var(--bg-elev-2)] border border-[var(--border)] cursor-pointer">
+              <label className="flex items-center justify-between h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] cursor-pointer">
                 <span className="text-[var(--text-secondary)]">Simulate save failure</span>
                 <input
                   type="checkbox"

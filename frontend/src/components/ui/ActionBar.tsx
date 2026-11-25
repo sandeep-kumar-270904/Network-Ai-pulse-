@@ -29,14 +29,13 @@ export const ActionBar: React.FC<ActionBarProps> = ({
       role="region"
       aria-label="Unsaved settings actions"
       aria-live="polite"
-      className={`fixed bottom-0 left-0 right-0 z-30 pointer-events-none transition-transform duration-[var(--dur-layout)] ease-[var(--ease-out)] ${
-        sidebarCollapsed ? 'md:left-[72px]' : 'md:left-[264px]'
+      className={`fixed bottom-0 left-0 right-0 z-30 pointer-events-none transition-all duration-[var(--dur-panel)] ease-[var(--ease-out)] ${
+        sidebarCollapsed ? 'lg:left-[72px]' : 'lg:left-[264px]'
       } ${showBar ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
     >
-      <div className="max-w-[1040px] mx-auto md:px-6 md:pb-5">
-        <div className="pointer-events-auto np-popover rounded-none md:rounded-[var(--radius-card)] border-t md:border border-[var(--border-strong)] px-4 py-3 sm:px-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          {/* Left status */}
-          <div className="flex items-center gap-2.5 min-w-0">
+      <div className="max-w-[1200px] mx-auto px-4 pb-4 sm:px-6 lg:px-8">
+        <div className="pointer-events-auto np-popover rounded-[var(--radius-card)] px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {saveState === 'error' ? (
               <span className="inline-flex items-center gap-2 text-[13px] font-medium text-[var(--danger)]">
                 <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
@@ -53,22 +52,21 @@ export const ActionBar: React.FC<ActionBarProps> = ({
                 <span className="text-[13px] font-medium text-[var(--text)]">
                   You have unsaved changes
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-[var(--bg-elev-2)] border border-[var(--border)] text-[11px] font-mono text-[var(--text-secondary)]">
+                <span className="px-2 py-1 rounded-[var(--radius-pill)] bg-[var(--surface-2)] text-[12px] leading-4 font-mono text-[var(--text-secondary)]">
                   {dirtyCount} {dirtyCount === 1 ? 'change' : 'changes'}
                 </span>
               </>
             )}
           </div>
 
-          {/* Right actions */}
           <div className="flex items-center justify-end gap-2 shrink-0">
             <button
               type="button"
               onClick={onReset}
               disabled={saveState === 'saving' || saveState === 'saved'}
-              className="h-10 px-3.5 rounded-[var(--radius-control)] inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] disabled:opacity-50 transition-colors"
+              className="h-10 px-4 rounded-[var(--radius-control)] inline-flex items-center gap-2 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 transition-colors"
             >
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+              <RotateCcw className="w-4 h-4" aria-hidden="true" />
               <span>Reset</span>
             </button>
 
@@ -97,7 +95,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
               ) : (
                 <>
                   <span>Save changes</span>
-                  <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] leading-none rounded bg-[var(--accent-ink)]/15 text-[var(--accent-ink)] font-mono">
+                  <kbd className="hidden sm:inline-block px-2 py-1 text-[12px] leading-none rounded-[var(--radius-control)] bg-[var(--accent-ink)]/15 text-[var(--accent-ink)] font-mono">
                     ⌘S
                   </kbd>
                 </>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useId } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 
 interface DialogProps {
@@ -34,7 +35,6 @@ export const Dialog: React.FC<DialogProps> = ({
     if (!open) return;
 
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
-    // Focus cancel by default for safety-critical confirmations
     window.requestAnimationFrame(() => {
       cancelBtnRef.current?.focus();
     });
@@ -72,9 +72,9 @@ export const Dialog: React.FC<DialogProps> = ({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#070b14]/80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--surface-backdrop)] backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -85,12 +85,12 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="w-full max-w-[480px] rounded-[var(--radius-dialog)] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] shadow-[var(--shadow-popover)] p-6 space-y-5"
+        className="w-full max-w-[480px] rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border-strong)] shadow-[var(--shadow-popover)] p-6 space-y-4"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             {tone === 'danger' && (
-              <div className="w-9 h-9 rounded-[var(--radius-control)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-[var(--radius-control)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 text-[var(--danger)]" aria-hidden="true" />
               </div>
             )}
@@ -108,7 +108,7 @@ export const Dialog: React.FC<DialogProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="w-8 h-8 rounded-[var(--radius-control)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] transition-colors shrink-0"
+            className="w-10 h-10 rounded-[var(--radius-control)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -121,7 +121,7 @@ export const Dialog: React.FC<DialogProps> = ({
             ref={cancelBtnRef}
             type="button"
             onClick={onClose}
-            className="h-10 px-4 rounded-[var(--radius-control)] bg-[var(--bg-elev-2)] border border-[var(--border-strong)] text-[14px] font-medium text-[var(--text)] hover:bg-[var(--bg-hover)] transition-colors"
+            className="h-10 px-4 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border-strong)] text-[14px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] transition-colors"
           >
             {cancelLabel}
           </button>
@@ -138,6 +138,7 @@ export const Dialog: React.FC<DialogProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -19,28 +19,18 @@ export const TestHistory: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#0D192B] border border-[#203750]">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#EAF3FF] font-mono flex items-center gap-2">
-            <History className="w-4 h-4 text-[#22D3EE]" /> Diagnostic Run History
-          </h2>
-          <p className="text-xs text-[#91A7C0] mt-0.5">
-            Audit trail of executed network diagnostics persisted in local SQLite datastore.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <button
-            onClick={loadHistory}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-[#111E30] hover:bg-[#13243A] text-[#22D3EE] border border-[#203750] transition-colors"
-          >
-            <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Sync History</span>
-          </button>
-          <span className="px-2 py-1 rounded bg-[#111E30] text-[#00D69A] border border-[#203750]">
-            SQLITE CONNECTED
-          </span>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-[13px] font-mono text-[var(--text-secondary)]">
+          {records.length} stored {records.length === 1 ? 'run' : 'runs'}
+        </span>
+        <button
+          onClick={loadHistory}
+          disabled={isLoading}
+          className="h-10 flex items-center gap-2 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text)] border border-[var(--border)] text-[13px] font-medium transition-colors"
+        >
+          <RefreshCw className={`w-4 h-4 text-[var(--accent)] ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* History Records Table or Empty State */}

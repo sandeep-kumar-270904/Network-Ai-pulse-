@@ -26,31 +26,6 @@ export const SystemInfoPage: React.FC<SystemInfoProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-[#0D192B] border border-[#203750]">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[#EAF3FF] font-mono flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-[#22D3EE]" /> Host Platform & System Information
-          </h2>
-          <p className="text-xs text-[#91A7C0] mt-0.5">
-            Genuine host hardware specs, Python environment, memory diagnostics, and network adapters.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs font-mono">
-          <span
-            className={`px-2.5 py-1 rounded border flex items-center gap-1.5 ${
-              backendOnline
-                ? 'bg-[#00D69A]/10 text-[#00D69A] border-[#00D69A]/30'
-                : 'bg-[#FF475F]/10 text-[#FF475F] border-[#FF475F]/30'
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${backendOnline ? 'bg-[#00D69A]' : 'bg-[#FF475F]'}`}
-            />
-            {backendOnline ? 'CORE ONLINE' : 'DISCONNECTED'}
-          </span>
-        </div>
-      </div>
-
       {/* Host Specifications & Memory */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Hardware & OS Specs */}

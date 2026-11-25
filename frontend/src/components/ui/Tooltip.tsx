@@ -81,7 +81,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
         <span
           id={tooltipId}
           role="tooltip"
-          className={`pointer-events-none fixed sm:absolute z-50 w-max max-w-[240px] px-2.5 py-1.5 rounded-[var(--radius-control)] bg-[var(--bg-elev-1)] border border-[var(--border-strong)] text-[12px] leading-4 font-normal text-[var(--text)] shadow-[var(--shadow-popover)] transition-opacity duration-[var(--dur-micro)] ${posClasses[side]}`}
+          className={`pointer-events-none fixed sm:absolute z-50 w-max max-w-[240px] px-3 py-2 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] leading-4 font-normal text-[var(--text)] shadow-[var(--shadow-popover)] transition-opacity duration-[var(--dur-micro)] ${posClasses[side]}`}
         >
           {content}
         </span>

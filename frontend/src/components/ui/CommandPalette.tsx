@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRight, RefreshCw, PanelLeft, X } from 'lucide-react';
+import { Search, ArrowRight, RefreshCw, PanelLeft, SunMoon, X } from 'lucide-react';
 import { NAV_SECTIONS } from '../layout/Sidebar';
 
 interface CommandPaletteProps {
@@ -8,6 +9,7 @@ interface CommandPaletteProps {
   onClose: () => void;
   onSyncNow: () => void;
   onToggleSidebar: () => void;
+  onToggleTheme: () => void;
 }
 
 interface PaletteEntry {
@@ -23,6 +25,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   onSyncNow,
   onToggleSidebar,
+  onToggleTheme,
 }) => {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -47,10 +50,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       {
         id: 'act-sync',
         group: 'Actions',
-        label: 'Sync gateway telemetry now',
+        label: 'Sync telemetry now',
         hint: 'Refresh',
         action: () => {
           onSyncNow();
+          onClose();
+        },
+      },
+      {
+        id: 'act-theme',
+        group: 'Actions',
+        label: 'Toggle dark / light theme',
+        hint: 'Theme',
+        action: () => {
+          onToggleTheme();
           onClose();
         },
       },
@@ -67,7 +80,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     ];
 
     return [...navEntries, ...actionEntries];
-  }, [navigate, onClose, onSyncNow, onToggleSidebar]);
+  }, [navigate, onClose, onSyncNow, onToggleSidebar, onToggleTheme]);
 
   const filtered = entries.filter(
     (e) =>
@@ -108,9 +121,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4 bg-[#070b14]/75 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4 bg-[var(--surface-backdrop)] backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -120,9 +133,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         aria-modal="true"
         aria-label="Quick command palette"
         onKeyDown={handleKeyDown}
-        className="w-full max-w-[540px] np-popover rounded-[var(--radius-dialog)] overflow-hidden"
+        className="w-full max-w-[560px] np-popover rounded-[var(--radius-card)] overflow-hidden"
       >
-        {/* Search Input */}
         <div className="flex items-center gap-3 px-4 h-12 border-b border-[var(--border)]">
           <Search className="w-4 h-4 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
           <input
@@ -138,13 +150,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close search"
-            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text)]"
+            className="w-10 h-10 -mr-2 rounded-[var(--radius-control)] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-3)]"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Results */}
         <div className="max-h-[340px] overflow-y-auto p-2 space-y-1">
           {filtered.length === 0 ? (
             <div className="py-8 text-center text-[13px] text-[var(--text-muted)]">
@@ -162,20 +173,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   className={`w-full flex items-center justify-between px-3 h-10 rounded-[var(--radius-control)] text-left transition-colors ${
                     isSelected
                       ? 'bg-[var(--accent-soft)] text-[var(--text)]'
-                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)]'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     {item.id === 'act-sync' ? (
                       <RefreshCw className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
+                    ) : item.id === 'act-theme' ? (
+                      <SunMoon className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
                     ) : item.id === 'act-sidebar' ? (
                       <PanelLeft className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
                     ) : (
-                      <ArrowRight className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
+                      <ArrowRight className="w-4 h-4 text-[var(--text-muted)] shrink-0" aria-hidden="true" />
                     )}
                     <span className="text-[14px] font-medium truncate">{item.label}</span>
                   </div>
-                  <span className="text-[11px] font-mono text-[var(--text-muted)] shrink-0 ml-3">
+                  <span className="text-[12px] font-mono text-[var(--text-muted)] shrink-0 ml-3">
                     {item.hint || item.group}
                   </span>
                 </button>
@@ -184,11 +197,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
         </div>
 
-        <div className="px-4 py-2 border-t border-[var(--border)] bg-[var(--bg-elev-2)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+        <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between text-[12px] text-[var(--text-muted)]">
           <span>Navigate with ↑↓ and Enter</span>
           <span className="font-mono">Esc to close</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -52,10 +52,10 @@ const ToastRow: React.FC<{ item: ToastItem; onDismiss: (id: string) => void }> =
   }, [startTimer]);
 
   const iconMap: Record<ToastTone, React.ReactNode> = {
-    ok: <CheckCircle2 className="w-4 h-4 text-[var(--ok)] shrink-0 mt-0.5" aria-hidden="true" />,
-    warn: <AlertTriangle className="w-4 h-4 text-[var(--warn)] shrink-0 mt-0.5" aria-hidden="true" />,
-    danger: <XCircle className="w-4 h-4 text-[var(--danger)] shrink-0 mt-0.5" aria-hidden="true" />,
-    info: <Info className="w-4 h-4 text-[var(--accent)] shrink-0 mt-0.5" aria-hidden="true" />,
+    ok: <CheckCircle2 className="w-4 h-4 text-[var(--ok)] shrink-0 mt-1" aria-hidden="true" />,
+    warn: <AlertTriangle className="w-4 h-4 text-[var(--warn)] shrink-0 mt-1" aria-hidden="true" />,
+    danger: <XCircle className="w-4 h-4 text-[var(--danger)] shrink-0 mt-1" aria-hidden="true" />,
+    info: <Info className="w-4 h-4 text-[var(--info)] shrink-0 mt-1" aria-hidden="true" />,
   };
 
   const borderMap: Record<ToastTone, string> = {
@@ -78,7 +78,7 @@ const ToastRow: React.FC<{ item: ToastItem; onDismiss: (id: string) => void }> =
       <div className="flex-1 min-w-0">
         <p className="text-[13px] leading-5 font-medium text-[var(--text)]">{item.title}</p>
         {item.description && (
-          <p className="text-[12px] leading-4 text-[var(--text-secondary)] mt-0.5">{item.description}</p>
+          <p className="text-[12px] leading-4 text-[var(--text-secondary)] mt-1">{item.description}</p>
         )}
         {item.action && (
           <button
@@ -87,7 +87,7 @@ const ToastRow: React.FC<{ item: ToastItem; onDismiss: (id: string) => void }> =
               item.action?.onClick();
               onDismiss(item.id);
             }}
-            className="mt-2 inline-flex items-center text-[12px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] rounded px-1 -ml-1"
+            className="mt-2 h-8 px-2 -ml-2 inline-flex items-center text-[12px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] rounded-[var(--radius-control)]"
           >
             {item.action.label}
           </button>
@@ -97,9 +97,9 @@ const ToastRow: React.FC<{ item: ToastItem; onDismiss: (id: string) => void }> =
         type="button"
         onClick={() => onDismiss(item.id)}
         aria-label="Dismiss notification"
-        className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-control)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--bg-hover)] transition-colors"
+        className="w-10 h-10 -mr-2 -mt-2 flex items-center justify-center rounded-[var(--radius-control)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] transition-colors shrink-0"
       >
-        <X className="w-3.5 h-3.5" />
+        <X className="w-4 h-4" />
       </button>
     </div>
   );

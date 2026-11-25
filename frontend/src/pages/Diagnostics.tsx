@@ -141,26 +141,6 @@ export const Diagnostics: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Live Operational Banner */}
-      <div className="p-4 rounded-xl bg-[#111E30] border border-[#00D69A]/40 flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-[#00D69A]/10 text-[#00D69A] flex-shrink-0">
-          <CheckCircle2 className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Live Multi-Protocol Diagnostic Engine
-            </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00D69A]/20 text-[#00D69A] uppercase font-semibold">
-              REAL SOCKETS ACTIVE
-            </span>
-          </div>
-          <p className="text-xs text-[#91A7C0] mt-1">
-            Execute genuine Layer-3 ICMP Echo pings, Layer-4 TCP port handshake checks, and Hop-by-Hop Traceroute discovery against local or public targets. Every run is saved to SQLite.
-          </p>
-        </div>
-      </div>
-
       {/* Diagnostic Configuration Form */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="p-5 rounded-xl bg-[#0D192B] border border-[#203750] space-y-4">
@@ -340,7 +320,7 @@ export const Diagnostics: React.FC = () => {
                 type="button"
                 onClick={handleExecute}
                 disabled={isRunning || Boolean(validationError)}
-                className="w-full py-2.5 px-4 rounded-lg bg-[#287EFF] hover:bg-[#168BFF] text-white flex items-center justify-center gap-2 font-mono text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 px-4 rounded-[var(--radius-control)] bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-ink)] flex items-center justify-center gap-2 text-[14px] font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isRunning ? (
                   <>

@@ -29,34 +29,14 @@ export const AIAnalysis: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* ML Pipeline Header */}
-      <div className="p-4 rounded-xl bg-[#111E30] border border-[#287EFF]/40 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-[#287EFF]/10 text-[#287EFF] flex-shrink-0">
-            <BrainCircuit className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-                Scikit-Learn IsolationForest Anomaly Detection
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00D69A]/20 text-[#00D69A] uppercase font-semibold">
-                LIVE ML ENGINE
-              </span>
-            </div>
-            <p className="text-xs text-[#91A7C0] mt-1">
-              Trains an unsupervised IsolationForest model on real SQLite telemetry features (Avg RTT, Max RTT, Jitter, Packet Loss %) to detect latency spikes and network instability.
-            </p>
-          </div>
-        </div>
-
+      <div className="flex justify-end">
         <button
           onClick={handleScan}
           disabled={loading || seeding}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#287EFF] hover:bg-[#168BFF] text-white text-xs font-mono font-semibold"
+          className="h-10 flex items-center gap-2 px-4 rounded-[var(--radius-control)] bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-ink)] text-[13px] font-semibold"
         >
-          {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-white" />}
-          <span>{loading ? 'Scoring Dataset...' : 'Run ML Anomaly Scan'}</span>
+          {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+          <span>{loading ? 'Scoring dataset…' : 'Run anomaly scan'}</span>
         </button>
       </div>
 

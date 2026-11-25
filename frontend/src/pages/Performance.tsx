@@ -25,26 +25,6 @@ export const Performance: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Operational Engine Banner */}
-      <div className="p-4 rounded-xl bg-[#111E30] border border-[#00D69A]/40 flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-[#00D69A]/10 text-[#00D69A] flex-shrink-0">
-          <CheckCircle2 className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#EAF3FF] font-mono">
-              Live Socket Throughput, Jitter Burst & Path MTU Discovery Engine
-            </h3>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00D69A]/20 text-[#00D69A] uppercase font-semibold">
-              REAL BENCHMARKS ACTIVE
-            </span>
-          </div>
-          <p className="text-xs text-[#91A7C0] mt-1">
-            Run multi-stream local TCP loopback throughput tests (`127.0.0.1`), concurrent TCP handshake stress against external servers, 12-packet jitter stability sweeps, or Do-Not-Fragment Path MTU discovery.
-          </p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Test Configuration */}
         <div className="p-5 rounded-xl bg-[#0D192B] border border-[#203750] space-y-4">
