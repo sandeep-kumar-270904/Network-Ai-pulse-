@@ -888,9 +888,9 @@ export const Diagnostics: React.FC = () => {
                   type="button"
                   onClick={handleClearConsole}
                   disabled={logs.length === 0 && !summary}
-                  className="h-8 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1.5 disabled:opacity-45"
+                  className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2 disabled:opacity-45"
                 >
-                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
                   <span>Clear</span>
                 </button>
               </div>

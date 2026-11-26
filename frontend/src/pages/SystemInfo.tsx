@@ -32,7 +32,7 @@ const KeyValueRow: React.FC<KeyValueRowProps> = ({
   truncate = false,
   href,
 }) => (
-  <div className="flex items-center justify-between gap-4 py-2.5 border-b border-[var(--border)] last:border-b-0">
+  <div className="flex items-center justify-between gap-4 py-3 border-b border-[var(--border)] last:border-b-0">
     <dt className="text-[13px] text-[var(--text-secondary)] shrink-0">{label}</dt>
     <dd className="flex items-center justify-end gap-2 min-w-0">
       {href ? (
@@ -215,10 +215,10 @@ export const SystemInfoPage: React.FC<SystemInfoProps> = ({
         </div>
         <Link
           to="/inventory"
-          className="h-9 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1.5"
+          className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[13px] font-medium text-[var(--accent)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2"
         >
           <span>Inspect adapters in Inventory</span>
-          <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+          <ArrowRight className="w-4 h-4" aria-hidden="true" />
         </Link>
       </div>
     </div>

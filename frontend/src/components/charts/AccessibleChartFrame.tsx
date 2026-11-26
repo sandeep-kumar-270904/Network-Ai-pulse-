@@ -45,7 +45,7 @@ export const AccessibleChartFrame: React.FC<AccessibleChartFrameProps> = ({
               aria-pressed={showTable}
               aria-label={showTable ? `Show visual chart for ${title}` : `Show data table for ${title}`}
               onClick={() => setShowTable((prev) => !prev)}
-              className="h-8 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1.5 transition-colors"
+              className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2 transition-colors"
             >
               {showTable ? (
                 <>

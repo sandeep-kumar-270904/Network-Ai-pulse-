@@ -37,6 +37,7 @@ import { ThemeMode } from '../components/ui/ThemeToggle';
 import { useSavedViews, SavedView } from '../hooks/useSavedViews';
 import { useToast } from '../components/ui/Toast';
 import { useDemoMode } from '../contexts/DemoModeContext';
+import { getChartPalette } from '../utils/chartTheme';
 import { exportToCsv, exportToJson } from '../utils/export';
 import {
   formatChartTimeUtc,
@@ -292,32 +293,16 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
 
   // Context chart (chronological, up to latest 150 scored points)
   const chartPoints = useMemo(() => [...timeAndSearchFiltered].slice(0, 150).reverse(), [timeAndSearchFiltered]);
-  const isLight = theme === 'light';
-  const palette = isLight
-    ? {
-        axisLabel: '#526077',
-        axisLine: '#c1cce0',
-        splitLine: '#dce3ee',
-        tooltipBg: '#ffffff',
-        tooltipBorder: '#c1cce0',
-        tooltipText: '#0f172a',
-        normalDot: '#155e75',
-        anomalyDot: '#b91c1c',
-        fpDot: '#64748b',
-        thresholdLine: '#92400e',
-      }
-    : {
-        axisLabel: '#8d9bb5',
-        axisLine: '#303d59',
-        splitLine: '#20293d',
-        tooltipBg: '#10151f',
-        tooltipBorder: '#303d59',
-        tooltipText: '#edf2fb',
-        normalDot: '#22d3ee',
-        anomalyDot: '#f87171',
-        fpDot: '#8d9bb5',
-        thresholdLine: '#fbbf24',
-      };
+  const palette = useMemo(() => {
+    const p = getChartPalette(theme);
+    return {
+      ...p,
+      normalDot: p.accent,
+      anomalyDot: p.danger,
+      fpDot: p.axisLabel,
+      thresholdLine: p.warn,
+    };
+  }, [theme]);
 
   const upperThresholdNum = useMemo(() => {
     if (!analysis?.baseline_mean_rtt_ms || !analysis?.baseline_std_rtt_ms) return null;
@@ -341,10 +326,10 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
           if (!pt) return '';
           return [
             `<div style="font-weight:600;margin-bottom:4px;">${formatTimestampUtc(pt.timestamp)}</div>`,
-            `<div>Target: ${pt.target}</div>`,
+            `<div>Target: ${maskHost(pt.target)}</div>`,
             `<div>RTT: ${formatLatencyMs(pt.avg_rtt_ms)} · Jitter: ${formatJitterMs(pt.jitter_ms)}</div>`,
             `<div>Classification: <strong>${pt.classification.toUpperCase()}</strong> (${pt.confidence_pct}%)</div>`,
-            `<div style="opacity:0.85;margin-top:2px;">${pt.reason}</div>`,
+            `<div style="opacity:0.85;margin-top:2px;">${maskText(pt.reason)}</div>`,
           ].join('');
         },
       },
@@ -358,7 +343,7 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
         type: 'category',
         data: labels,
         axisLine: { lineStyle: { color: palette.axisLine } },
-        axisLabel: { color: palette.axisLabel, fontFamily: 'JetBrains Mono', fontSize: 11, hideOverlap: true },
+        axisLabel: { color: palette.axisLabel, fontFamily: 'JetBrains Mono', fontSize: 12, hideOverlap: true },
       },
       yAxis: {
         type: 'value',
@@ -380,7 +365,7 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ theme = 'dark' }) => {
                 symbol: ['none', 'none'],
                 silent: true,
                 lineStyle: { color: palette.thresholdLine, type: 'dashed', width: 1.5 },
-                label: { formatter: `Upper RTT threshold (${upperThresholdNum} ms)`, color: palette.thresholdLine, fontSize: 11 },
+                label: { formatter: `Upper RTT threshold (${upperThresholdNum} ms)`, color: palette.thresholdLine, fontSize: 12 },
                 data: [{ yAxis: upperThresholdNum }],
               }
             : undefined,

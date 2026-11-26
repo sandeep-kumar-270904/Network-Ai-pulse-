@@ -32,7 +32,7 @@ const DOT_CLASSES: Record<StatusTone, string> = {
 
 const SIZE_CLASSES: Record<'xs' | 'sm' | 'md', string> = {
   xs: 'h-6 px-2 text-[12px] leading-4 rounded-[var(--radius-pill)] gap-1 uppercase tracking-wide',
-  sm: 'h-6 px-3 text-[12px] leading-4 rounded-[var(--radius-pill)] gap-1.5',
+  sm: 'h-6 px-3 text-[12px] leading-4 rounded-[var(--radius-pill)] gap-2',
   md: 'h-8 px-3 text-[13px] leading-4 rounded-[var(--radius-control)] gap-2',
 };
 

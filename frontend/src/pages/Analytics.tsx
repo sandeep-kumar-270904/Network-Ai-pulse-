@@ -12,6 +12,7 @@ import { ErrorState } from '../components/ui/ErrorState';
 import { Skeleton } from '../components/ui/Skeleton';
 import { AccessibleChartFrame } from '../components/charts/AccessibleChartFrame';
 import { useDemoMode } from '../contexts/DemoModeContext';
+import { getChartPalette } from '../utils/chartTheme';
 import {
   formatChartTimeUtc,
   formatJitterMs,
@@ -108,44 +109,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
     await loadAnalytics();
   };
 
-  const isLight = theme === 'light';
-  const palette = useMemo(
-    () =>
-      isLight
-        ? {
-            axisLabel: '#526077',
-            axisLine: '#c1cce0',
-            splitLine: '#dce3ee',
-            tooltipBg: '#ffffff',
-            tooltipBorder: '#c1cce0',
-            tooltipText: '#0f172a',
-            tooltipSub: '#526077',
-            outageBand: 'rgba(185, 28, 28, 0.12)',
-            outageColor: '#b91c1c',
-            outageLabel: '#991b1b',
-            zoomBg: '#edf1f7',
-            zoomFill: 'rgba(21, 94, 117, 0.15)',
-            zoomBorder: '#c1cce0',
-            seriesColors: ['#155e75', '#1d4ed8', '#065f46', '#92400e', '#7c3aed'],
-          }
-        : {
-            axisLabel: '#8d9bb5',
-            axisLine: '#303d59',
-            splitLine: '#20293d',
-            tooltipBg: '#10151f',
-            tooltipBorder: '#303d59',
-            tooltipText: '#edf2fb',
-            tooltipSub: '#8d9bb5',
-            outageBand: 'rgba(248, 113, 113, 0.16)',
-            outageColor: '#f87171',
-            outageLabel: '#fca5a5',
-            zoomBg: '#171e2c',
-            zoomFill: 'rgba(34, 211, 238, 0.16)',
-            zoomBorder: '#303d59',
-            seriesColors: ['#22d3ee', '#60a5fa', '#34d399', '#fbbf24', '#c084fc'],
-          },
-    [isLight]
-  );
+  const palette = useMemo(() => getChartPalette(theme), [theme]);
 
   const timestamps: string[] = analytics?.series?.timestamps || [];
   const isoTimestamps: string[] = analytics?.series?.iso_timestamps || [];
@@ -244,7 +208,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
         formatter: 'Outage',
         position: 'top',
         color: palette.outageLabel,
-        fontSize: 11,
+        fontSize: 12,
         fontFamily: 'JetBrains Mono',
       },
     };
@@ -688,7 +652,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
             <button
               type="button"
               onClick={() => setChartView('aggregate')}
-              className={`h-8 px-3 rounded-[var(--radius-control)] text-[12px] font-medium transition-colors ${
+              className={`h-10 px-3 rounded-[var(--radius-control)] text-[12px] font-medium transition-colors ${
                 chartView === 'aggregate'
                   ? 'bg-[var(--accent-soft)] text-[var(--accent)] font-semibold'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
@@ -699,7 +663,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ timeRange = '1h', theme = 
             <button
               type="button"
               onClick={() => setChartView('compare')}
-              className={`h-8 px-3 rounded-[var(--radius-control)] text-[12px] font-medium transition-colors ${
+              className={`h-10 px-3 rounded-[var(--radius-control)] text-[12px] font-medium transition-colors ${
                 chartView === 'compare'
                   ? 'bg-[var(--accent-soft)] text-[var(--accent)] font-semibold'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text)]'

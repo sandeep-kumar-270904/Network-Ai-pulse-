@@ -66,7 +66,7 @@ export function Tabs<T extends string = string>({
               tabIndex={selected ? 0 : -1}
               onKeyDown={(e) => handleKeyDown(e, idx)}
               onClick={() => onChange(tab.id)}
-              className={`h-8 min-w-[40px] px-3 rounded-[var(--radius-control)] text-[13px] leading-5 font-medium inline-flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`h-10 min-w-[40px] px-3 rounded-[var(--radius-control)] text-[13px] leading-5 font-medium inline-flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed ${
                 selected
                   ? 'bg-[var(--surface-1)] text-[var(--text)] shadow-[var(--shadow-card)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text)]'

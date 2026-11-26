@@ -23,6 +23,7 @@ import {
 import { TimeRangeOption } from '../components/layout/TopBar';
 import { StatusChip } from '../components/ui/StatusChip';
 import { Select } from '../components/ui/Select';
+import { Switch } from '../components/ui/Switch';
 import { Dialog } from '../components/ui/Dialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
@@ -843,13 +844,13 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 {(['csv', 'json'] as const).map((fmt) => (
                   <button
                     key={fmt}
                     type="button"
                     onClick={() => setSchedFormat(fmt)}
-                    className={`h-8 px-3 rounded-[var(--radius-control)] border text-[12px] font-mono uppercase ${
+                    className={`h-10 px-3 rounded-[var(--radius-control)] border text-[12px] font-mono uppercase ${
                       schedFormat === fmt
                         ? 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40 font-semibold'
                         : 'bg-[var(--surface-1)] text-[var(--text-secondary)] border-[var(--border)]'
@@ -861,9 +862,9 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
               </div>
               <button
                 type="submit"
-                className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-ink)] text-[12px] font-semibold inline-flex items-center gap-1.5"
+                className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-ink)] text-[12px] font-semibold inline-flex items-center gap-2"
               >
-                <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>Add schedule</span>
               </button>
             </div>
@@ -873,9 +874,9 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
             {schedules.map((sched) => (
               <div key={sched.id} className="py-3 flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-[13px] font-semibold text-[var(--text)] flex items-center gap-1.5">
+                  <div className="text-[13px] font-semibold text-[var(--text)] flex items-center gap-2">
                     <CheckCircle2
-                      className={`w-3.5 h-3.5 shrink-0 ${
+                      className={`w-4 h-4 shrink-0 ${
                         sched.enabled ? 'text-[var(--ok)]' : 'text-[var(--text-muted)]'
                       }`}
                       aria-hidden="true"
@@ -888,34 +889,20 @@ export const Reports: React.FC<ReportsProps> = ({ timeRange = '1h' }) => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={sched.enabled}
-                    aria-label={`Toggle ${sched.title}`}
-                    onClick={() => toggleSchedule(sched.id)}
-                    className={`relative w-9 h-5 rounded-full border transition-colors ${
-                      sched.enabled
-                        ? 'bg-[var(--accent)] border-[var(--accent)]'
-                        : 'bg-[var(--surface-2)] border-[var(--border-control)]'
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-[2px] left-[2px] w-3.5 h-3.5 rounded-full transition-transform ${
-                        sched.enabled
-                          ? 'translate-x-4 bg-[var(--accent-ink)]'
-                          : 'translate-x-0 bg-[var(--text-secondary)]'
-                      }`}
-                    />
-                  </button>
+                  <Switch
+                    inline
+                    title={`Toggle ${sched.title}`}
+                    checked={sched.enabled}
+                    onChange={() => toggleSchedule(sched.id)}
+                  />
 
                   <button
                     type="button"
                     onClick={() => setDeleteSchedTarget(sched)}
                     aria-label={`Delete schedule ${sched.title}`}
-                    className="h-8 w-8 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--danger)] inline-flex items-center justify-center"
+                    className="h-10 w-10 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--danger)] inline-flex items-center justify-center"
                   >
-                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>

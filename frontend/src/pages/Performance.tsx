@@ -19,6 +19,7 @@ import { ErrorState } from '../components/ui/ErrorState';
 import { AccessibleChartFrame } from '../components/charts/AccessibleChartFrame';
 import { useToast } from '../components/ui/Toast';
 import { useDemoMode } from '../contexts/DemoModeContext';
+import { getChartPalette } from '../utils/chartTheme';
 import {
   formatJitterMs,
   formatLatencyMs,
@@ -108,12 +109,6 @@ const CATEGORY_META: Record<
       seriesUnit: 'pass',
     },
   },
-};
-
-const readCssVar = (name: string, fallback: string): string => {
-  if (typeof window === 'undefined') return fallback;
-  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return val || fallback;
 };
 
 const renderDeltaBadge = (
@@ -313,29 +308,30 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
 
   // ECharts option depending on state: Running progress chart vs Result vs Example preview
   const chartOption = useMemo(() => {
-    const textMuted = readCssVar('--text-muted', '#8a98ad');
-    const border = readCssVar('--border', 'rgba(148,163,184,0.2)');
-    const accent = readCssVar('--accent', '#38bdf8');
-    const ok = readCssVar('--ok', '#10b981');
-    const warn = readCssVar('--warn', '#f59e0b');
-    const danger = readCssVar('--danger', '#ef4444');
+    const pal = getChartPalette(theme);
+    const textMuted = pal.axisLabel;
+    const border = pal.splitLine;
+    const accent = pal.accent;
+    const ok = pal.ok;
+    const warn = pal.warn;
+    const danger = pal.danger;
 
     if (isRunning) {
       return {
         animation: false,
-        grid: { left: 40, right: 16, top: 20, bottom: 26 },
+        grid: { left: 44, right: 16, top: 20, bottom: 28 },
         tooltip: { trigger: 'axis' },
         xAxis: {
           type: 'category',
           data: liveProgressPoints.map((p) => p.label),
-          axisLabel: { color: textMuted, fontSize: 11 },
+          axisLabel: { color: textMuted, fontSize: 12 },
           axisLine: { lineStyle: { color: border } },
         },
         yAxis: {
           type: 'value',
           min: 0,
           max: 100,
-          axisLabel: { color: textMuted, fontSize: 11, formatter: '{value}%' },
+          axisLabel: { color: textMuted, fontSize: 12, formatter: '{value}%' },
           splitLine: { lineStyle: { color: border, type: 'dashed' } },
         },
         series: [
@@ -357,12 +353,12 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
     if (result) {
       if (testType === 'mtu_sweep' && Array.isArray(result.steps)) {
         return {
-          grid: { left: 48, right: 16, top: 24, bottom: 28 },
+          grid: { left: 52, right: 16, top: 24, bottom: 28 },
           tooltip: { trigger: 'axis' },
           xAxis: {
             type: 'category',
             data: result.steps.map((s: any) => `${s.mtu_bytes}B`),
-            axisLabel: { color: textMuted, fontSize: 11 },
+            axisLabel: { color: textMuted, fontSize: 12 },
             axisLine: { lineStyle: { color: border } },
           },
           yAxis: {
@@ -372,7 +368,7 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
             interval: 1,
             axisLabel: {
               color: textMuted,
-              fontSize: 11,
+              fontSize: 12,
               formatter: (v: number) => (v === 1 ? 'OK' : 'Drop'),
             },
             splitLine: { lineStyle: { color: border, type: 'dashed' } },
@@ -442,18 +438,18 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
       }
 
       return {
-        grid: { left: 48, right: 16, top: 28, bottom: 28 },
+        grid: { left: 52, right: 16, top: 32, bottom: 28 },
         tooltip: { trigger: 'axis' },
-        legend: prevResult ? { top: 0, textStyle: { color: textMuted, fontSize: 11 } } : undefined,
+        legend: prevResult ? { top: 0, textStyle: { color: textMuted, fontSize: 12 } } : undefined,
         xAxis: {
           type: 'category',
           data: metrics.map((m) => m.name),
-          axisLabel: { color: textMuted, fontSize: 11 },
+          axisLabel: { color: textMuted, fontSize: 12 },
           axisLine: { lineStyle: { color: border } },
         },
         yAxis: {
           type: 'value',
-          axisLabel: { color: textMuted, fontSize: 11 },
+          axisLabel: { color: textMuted, fontSize: 12 },
           splitLine: { lineStyle: { color: border, type: 'dashed' } },
         },
         series,
@@ -463,16 +459,16 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
     // Example Preview Chart for Empty State
     const ex = CATEGORY_META[testType].example;
     return {
-      grid: { left: 44, right: 14, top: 16, bottom: 24 },
+      grid: { left: 48, right: 14, top: 16, bottom: 28 },
       xAxis: {
         type: 'category',
         data: ex.seriesLabels,
-        axisLabel: { color: textMuted, fontSize: 11 },
+        axisLabel: { color: textMuted, fontSize: 12 },
         axisLine: { lineStyle: { color: border } },
       },
       yAxis: {
         type: 'value',
-        axisLabel: { color: textMuted, fontSize: 11 },
+        axisLabel: { color: textMuted, fontSize: 12 },
         splitLine: { lineStyle: { color: border, type: 'dashed' } },
       },
       series: [
@@ -546,7 +542,7 @@ export const Performance: React.FC<PerformanceProps> = ({ theme = 'dark' }) => {
                     type="button"
                     disabled={isRunning}
                     onClick={() => setTarget(ip)}
-                    className={`h-8 px-2.5 rounded-[var(--radius-control)] border font-mono text-[12px] transition-colors ${
+                    className={`h-10 px-3 rounded-[var(--radius-control)] border font-mono text-[12px] transition-colors ${
                       target === ip
                         ? 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]/40 font-semibold'
                         : 'bg-[var(--surface-2)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text)]'

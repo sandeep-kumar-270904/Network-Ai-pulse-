@@ -110,7 +110,7 @@ export const Select: React.FC<SelectProps> = ({
                     onChange({ target: { value: opt.value } });
                     setOpen(false);
                   }}
-                  className={`w-full min-h-[36px] px-3 py-2 rounded-[var(--radius-control)] text-[13px] leading-5 flex items-center justify-between gap-2 text-left transition-colors ${
+                  className={`w-full min-h-[40px] px-3 py-2 rounded-[var(--radius-control)] text-[13px] leading-5 flex items-center justify-between gap-2 text-left transition-colors ${
                     selected
                       ? 'bg-[var(--accent-soft)] text-[var(--text)] font-medium'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--surface-3)] hover:text-[var(--text)]'

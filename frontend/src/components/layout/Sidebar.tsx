@@ -250,7 +250,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     onClick={() => toggleGroup(section.id)}
                     aria-expanded={!groupCollapsed}
-                    className="w-full h-7 flex items-center justify-between px-3 rounded-[var(--radius-control)] text-left group hover:bg-[var(--surface-2)] transition-colors"
+                    className="w-full h-10 flex items-center justify-between px-3 rounded-[var(--radius-control)] text-left group hover:bg-[var(--surface-2)] transition-colors"
                   >
                     <span
                       className={`text-[12px] leading-4 font-semibold transition-colors ${

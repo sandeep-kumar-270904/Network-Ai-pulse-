@@ -38,6 +38,7 @@ import { ErrorState } from '../ui/ErrorState';
 import { Skeleton } from '../ui/Skeleton';
 import { ThemeMode } from '../ui/ThemeToggle';
 import { useDemoMode } from '../../contexts/DemoModeContext';
+import { getChartPalette, readCssToken } from '../../utils/chartTheme';
 
 export type NodeDeviceRole = 'gateway' | 'switch' | 'server' | 'probe';
 export type NodeHealthStatus = 'online' | 'degraded' | 'offline';
@@ -187,18 +188,17 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
-  const isLight = theme === 'light';
-  const graphColors = useMemo(
-    () => ({
-      gridDots: isLight ? '#c1cce0' : '#243049',
-      edgeHealthy: isLight ? '#065f46' : '#34d399',
-      edgeAccent: isLight ? '#155e75' : '#22d3ee',
-      edgeDegraded: isLight ? '#92400e' : '#fbbf24',
-      edgeFailing: isLight ? '#b91c1c' : '#f87171',
-      minimapMask: isLight ? 'rgba(246, 248, 251, 0.72)' : 'rgba(9, 12, 18, 0.72)',
-    }),
-    [isLight]
-  );
+  const graphColors = useMemo(() => {
+    const pal = getChartPalette(theme);
+    return {
+      gridDots: readCssToken('--border-strong', theme === 'light' ? '#c1cce0' : '#243049'),
+      edgeHealthy: pal.ok,
+      edgeAccent: pal.accent,
+      edgeDegraded: pal.warn,
+      edgeFailing: pal.danger,
+      minimapMask: pal.minimapMask,
+    };
+  }, [theme]);
 
   const loadTopologyData = useCallback(async () => {
     setLoading(true);

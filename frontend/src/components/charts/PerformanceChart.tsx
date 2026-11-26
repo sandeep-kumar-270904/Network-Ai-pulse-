@@ -12,6 +12,7 @@ import {
 import { ThemeMode } from '../ui/ThemeToggle';
 import { AccessibleChartFrame } from './AccessibleChartFrame';
 import { useDemoMode } from '../../contexts/DemoModeContext';
+import { getChartPalette } from '../../utils/chartTheme';
 
 interface MetricSeries {
   timestamps: string[];
@@ -53,46 +54,12 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
   const [selectedMetric, setSelectedMetric] = useState<'latency' | 'jitter' | 'loss' | 'throughput'>('latency');
   const { maskHost } = useDemoMode();
 
-  const isLight = theme === 'light';
-  const palette = isLight
-    ? {
-        axisLabel: '#526077',
-        axisLine: '#c1cce0',
-        splitLine: '#dce3ee',
-        tooltipBg: '#ffffff',
-        tooltipBorder: '#c1cce0',
-        tooltipText: '#0f172a',
-        tooltipSub: '#526077',
-        outageBand: 'rgba(185, 28, 28, 0.12)',
-        outageColor: '#b91c1c',
-        outageLabel: '#991b1b',
-        latency: '#155e75',
-        jitter: '#1d4ed8',
-        loss: '#b91c1c',
-        throughput: '#065f46',
-      }
-    : {
-        axisLabel: '#8d9bb5',
-        axisLine: '#303d59',
-        splitLine: '#20293d',
-        tooltipBg: '#10151f',
-        tooltipBorder: '#303d59',
-        tooltipText: '#edf2fb',
-        tooltipSub: '#8d9bb5',
-        outageBand: 'rgba(248, 113, 113, 0.16)',
-        outageColor: '#f87171',
-        outageLabel: '#fca5a5',
-        latency: '#22d3ee',
-        jitter: '#60a5fa',
-        loss: '#f87171',
-        throughput: '#34d399',
-      };
-
+  const palette = getChartPalette(theme);
   const metricMeta = {
-    latency: { label: 'Round-trip latency', unit: 'ms', color: palette.latency },
-    jitter: { label: 'Packet jitter', unit: 'ms', color: palette.jitter },
-    loss: { label: 'Packet loss', unit: '%', color: palette.loss },
-    throughput: { label: 'Throughput', unit: 'Mbps', color: palette.throughput },
+    latency: { label: 'Round-trip latency', unit: 'ms', color: palette.accent },
+    jitter: { label: 'Packet jitter', unit: 'ms', color: palette.info },
+    loss: { label: 'Packet loss', unit: '%', color: palette.danger },
+    throughput: { label: 'Throughput', unit: 'Mbps', color: palette.ok },
   }[selectedMetric];
 
   const currentSeries = seriesData?.[selectedMetric];
@@ -152,7 +119,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
             formatter: 'Outage',
             position: 'top',
             color: palette.outageLabel,
-            fontSize: 11,
+            fontSize: 12,
             fontFamily: 'JetBrains Mono',
           },
         };
@@ -259,7 +226,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({
                 key={m}
                 type="button"
                 onClick={() => setSelectedMetric(m)}
-                className={`px-2.5 py-1 text-[12px] font-mono capitalize rounded-[var(--radius-control)] transition-colors ${
+                className={`h-10 px-3 text-[12px] font-mono capitalize rounded-[var(--radius-control)] transition-colors ${
                   selectedMetric === m
                     ? 'bg-[var(--accent-soft)] text-[var(--accent)] font-semibold border border-[var(--accent)]/30'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text)]'

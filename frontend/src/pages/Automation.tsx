@@ -25,6 +25,7 @@ import { StatusChip } from '../components/ui/StatusChip';
 import { Dialog } from '../components/ui/Dialog';
 import { TextInput } from '../components/ui/TextInput';
 import { Select } from '../components/ui/Select';
+import { Switch } from '../components/ui/Switch';
 import { CopyButton } from '../components/ui/CopyButton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
@@ -165,13 +166,33 @@ export const Automation: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    const targetName = deleteTarget.name;
-    const deletedId = deleteTarget.id;
-    const ok = await deleteAutomationJob(deletedId);
+    const deletedJob = deleteTarget;
+    const ok = await deleteAutomationJob(deletedJob.id);
     setDeleteTarget(null);
     if (ok) {
-      setJobs((prev) => prev.filter((j) => j.id !== deletedId));
-      addToast({ tone: 'info', title: `Deleted schedule "${targetName}"` });
+      setJobs((prev) => prev.filter((j) => j.id !== deletedJob.id));
+      addToast({
+        tone: 'info',
+        title: `Deleted schedule "${deletedJob.name}"`,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            const { job: restored } = await createAutomationJob(
+              deletedJob.name,
+              deletedJob.target,
+              deletedJob.test_type || 'icmp_ping',
+              Number(deletedJob.interval_seconds || 60)
+            );
+            if (restored) {
+              if (!deletedJob.enabled) {
+                await toggleAutomationJob(restored.id, false);
+              }
+              await loadJobsAndHistory();
+              addToast({ tone: 'ok', title: `Restored schedule "${deletedJob.name}"` });
+            }
+          },
+        },
+      });
     }
   };
 
@@ -195,7 +216,8 @@ export const Automation: React.FC = () => {
       if (job.enabled) {
         const lastMs = parseUtcMillis(job.last_run);
         if (!lastMs) {
-          nextRunLabel = 'Queued next tick';
+          nextRunLabel = 'Queued';
+          nextRunUtc = 'Queued for next scheduler tick';
         } else {
           const nextMs = lastMs + Number(job.interval_seconds || 60) * 1000;
           const diffSec = Math.round((nextMs - nowMs) / 1000);
@@ -329,14 +351,14 @@ export const Automation: React.FC = () => {
           <table className="w-full border-collapse text-left text-[13px]">
             <thead className="bg-[var(--surface-2)] text-[var(--text-secondary)] text-[12px] font-semibold border-b border-[var(--border)]">
               <tr>
-                <th className="py-3 px-3">Schedule</th>
-                <th className="py-3 px-3">Target</th>
-                <th className="py-3 px-3">Next run</th>
-                <th className="py-3 px-3">Last result</th>
-                <th className="py-3 px-3 text-right">Pass %</th>
-                <th className="py-3 px-3">Recent (12)</th>
-                <th className="py-3 px-3">Active</th>
-                <th className="py-3 px-3 text-right">Actions</th>
+                <th className="py-3 px-2">Schedule</th>
+                <th className="py-3 px-2">Target</th>
+                <th className="py-3 px-2">Next run</th>
+                <th className="py-3 px-2">Last result</th>
+                <th className="py-3 px-2 text-right">Pass %</th>
+                <th className="py-3 px-2">Recent (12)</th>
+                <th className="py-3 px-2">Active</th>
+                <th className="py-3 px-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -352,22 +374,24 @@ export const Automation: React.FC = () => {
 
                 return (
                   <tr key={job.id} className="hover:bg-[var(--surface-3)]/60 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-[var(--text)]">{job.name}</div>
-                      <div className="text-[12px] font-mono text-[var(--text-muted)]">
+                    <td className="py-2.5 px-2 max-w-[175px]">
+                      <div className="font-semibold text-[var(--text)] truncate" title={job.name}>
+                        {job.name}
+                      </div>
+                      <div className="text-[12px] font-mono text-[var(--text-muted)] truncate">
                         {job.test_type === 'tcp_probe' ? 'TCP :443' : 'ICMP ping'} · every{' '}
                         {formatIntervalLabel(job.interval_seconds)} · {job.run_count} runs
                       </div>
                     </td>
 
-                    <td className="py-3 px-3 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap">
+                    <td className="py-2.5 px-2 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
                         <span>{maskHost(job.target)}</span>
                         <CopyButton value={maskHost(job.target)} label={`Copy ${maskHost(job.target)}`} compact />
                       </div>
                     </td>
 
-                    <td className="py-3 px-3 font-mono text-[12px] np-mono-val whitespace-nowrap" title={nextRunUtc || undefined}>
+                    <td className="py-2.5 px-2 font-mono text-[12px] np-mono-val whitespace-nowrap" title={nextRunUtc || undefined}>
                       <span
                         className={`inline-flex items-center gap-1 ${
                           isOn ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'
@@ -378,7 +402,7 @@ export const Automation: React.FC = () => {
                       </span>
                     </td>
 
-                    <td className="py-3 px-3 whitespace-nowrap">
+                    <td className="py-2.5 px-2 whitespace-nowrap">
                       <div className="space-y-0.5">
                         <StatusChip
                           size="sm"
@@ -402,7 +426,7 @@ export const Automation: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="py-3 px-3 text-right font-mono text-[13px] font-semibold np-mono-val whitespace-nowrap">
+                    <td className="py-2.5 px-2 text-right font-mono text-[13px] font-semibold np-mono-val whitespace-nowrap">
                       {successRate !== null ? (
                         <span
                           className={
@@ -421,7 +445,7 @@ export const Automation: React.FC = () => {
                     </td>
 
                     {/* Mini History Strip */}
-                    <td className="py-3 px-3">
+                    <td className="py-2.5 px-2">
                       <div
                         className="flex items-center gap-0.5"
                         aria-label={`Recent ${matching.length} probe results for ${job.name}`}
@@ -433,7 +457,7 @@ export const Automation: React.FC = () => {
                             return (
                               <span
                                 key={idx}
-                                className="w-1.5 h-5 rounded-[2px] bg-[var(--surface-3)]/70"
+                                className="w-1 h-5 rounded-[2px] bg-[var(--surface-3)]/70"
                                 title="No historical run"
                               />
                             );
@@ -442,7 +466,7 @@ export const Automation: React.FC = () => {
                           return (
                             <span
                               key={rec.id || idx}
-                              className={`w-1.5 h-5 rounded-[2px] ${
+                              className={`w-1 h-5 rounded-[2px] ${
                                 ok ? 'bg-[var(--ok)]' : 'bg-[var(--danger)]'
                               }`}
                               title={`${formatTimestampUtc(rec.timestamp)} · ${rec.status.toUpperCase()} · ${formatLatencyMs(
@@ -455,59 +479,40 @@ export const Automation: React.FC = () => {
                     </td>
 
                     {/* Single On/Off Switch */}
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={isOn}
-                        aria-label={`Enable ${job.name}`}
-                        onClick={() => handleToggle(job.id, isOn)}
-                        className="inline-flex items-center gap-1.5 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] rounded-full p-0.5"
-                      >
-                        <span
-                          className={`relative w-9 h-5 rounded-full border transition-colors ${
-                            isOn
-                              ? 'bg-[var(--accent)] border-[var(--accent)]'
-                              : 'bg-[var(--surface-2)] border-[var(--border-control)]'
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-[2px] left-[2px] w-3.5 h-3.5 rounded-full transition-transform ${
-                              isOn
-                                ? 'translate-x-4 bg-[var(--accent-ink)]'
-                                : 'translate-x-0 bg-[var(--text-secondary)]'
-                            }`}
-                          />
-                        </span>
-                        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
-                          {isOn ? 'On' : 'Off'}
-                        </span>
-                      </button>
+                    <td className="py-2.5 px-2 whitespace-nowrap">
+                      <Switch
+                        inline
+                        title={`Enable ${job.name}`}
+                        checked={isOn}
+                        onChange={() => handleToggle(job.id, isOn)}
+                      />
                     </td>
 
-                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                    <td className="py-2.5 px-2 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleRunNow(job)}
                           disabled={runningId === job.id}
-                          className="h-9 px-3 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1.5 disabled:opacity-50"
+                          aria-label={`Run ${job.name} now`}
+                          title="Run probe immediately"
+                          className="h-10 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1.5 disabled:opacity-50"
                         >
                           {runningId === job.id ? (
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <Play className="w-3.5 h-3.5" />
                           )}
-                          <span>Run now</span>
+                          <span>Run</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(job)}
                           aria-label={`Delete ${job.name}`}
-                          className="h-9 w-9 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--danger)] inline-flex items-center justify-center"
+                          className="h-10 w-10 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--danger)] inline-flex items-center justify-center"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

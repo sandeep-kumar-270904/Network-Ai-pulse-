@@ -87,7 +87,7 @@ const ToastRow: React.FC<{ item: ToastItem; onDismiss: (id: string) => void }> =
               item.action?.onClick();
               onDismiss(item.id);
             }}
-            className="mt-2 h-8 px-2 -ml-2 inline-flex items-center text-[12px] font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] rounded-[var(--radius-control)]"
+            className="mt-2 h-10 px-3 -ml-2 inline-flex items-center text-[12px] font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)] bg-[var(--surface-2)] rounded-[var(--radius-control)]"
           >
             {item.action.label}
           </button>

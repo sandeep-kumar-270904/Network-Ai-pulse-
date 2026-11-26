@@ -91,7 +91,7 @@ export function DataTable<T>({
                 type="button"
                 onClick={() => setDensity(mode)}
                 aria-pressed={density === mode}
-                className={`h-8 px-3 rounded-[var(--radius-control)] text-[12px] font-medium capitalize transition-colors ${
+                className={`h-10 px-3 rounded-[var(--radius-control)] text-[12px] font-medium capitalize transition-colors ${
                   density === mode
                     ? 'bg-[var(--surface-1)] text-[var(--text)] shadow-[var(--shadow-card)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
@@ -132,7 +132,7 @@ export function DataTable<T>({
                         <button
                           type="button"
                           onClick={() => handleSort(col)}
-                          className={`inline-flex items-center gap-1.5 min-h-[32px] rounded px-1 -mx-1 hover:text-[var(--text)] transition-colors ${
+                          className={`inline-flex items-center gap-2 min-h-[40px] rounded px-1 -mx-1 hover:text-[var(--text)] transition-colors ${
                             isRight ? 'flex-row-reverse' : ''
                           }`}
                         >

@@ -119,8 +119,11 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
   const [formErrors, setFormErrors] = useState<{ name?: string; ip?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Delete confirmation dialog state
+  // Delete confirmation dialog + bulk selection state
   const [deleteTarget, setDeleteTarget] = useState<UnifiedAssetRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkProbing, setBulkProbing] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const { views, saveView, deleteView } = useSavedViews<InventorySavedState>('inventory');
   const { addToast } = useToast();
@@ -297,14 +300,100 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    const ok = await deleteInventoryNode(deleteTarget.id);
-    const targetName = deleteTarget.name;
+    const removed = deleteTarget;
+    const ok = await deleteInventoryNode(removed.id);
     setDeleteTarget(null);
-    if (selectedAsset?.id === deleteTarget.id) setSelectedAsset(null);
+    if (selectedAsset?.id === removed.id) setSelectedAsset(null);
+    setSelectedIds((prev) => prev.filter((id) => id !== removed.id));
     await loadData();
     addToast({
       tone: ok ? 'info' : 'danger',
-      title: ok ? `Removed "${targetName}"` : `Unable to remove "${targetName}"`,
+      title: ok ? `Removed "${maskHost(removed.name)}"` : `Unable to remove "${maskHost(removed.name)}"`,
+      action: ok
+        ? {
+            label: 'Undo',
+            onClick: async () => {
+              await addInventoryNode(removed.name, removed.ip, removed.role, 'custom');
+              await loadData();
+              addToast({ tone: 'ok', title: `Restored "${maskHost(removed.name)}"` });
+            },
+          }
+        : undefined,
+    });
+  };
+
+  const selectedAssets = useMemo(
+    () => unifiedAssets.filter((a) => selectedIds.includes(a.id)),
+    [unifiedAssets, selectedIds]
+  );
+  const selectedCustomAssets = useMemo(
+    () => selectedAssets.filter((a) => a.removable),
+    [selectedAssets]
+  );
+  const allPageSelected =
+    paginatedAssets.length > 0 && paginatedAssets.every((a) => selectedIds.includes(a.id));
+
+  const toggleSelectAllOnPage = () => {
+    const pageIds = paginatedAssets.map((a) => a.id);
+    if (allPageSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
+
+  const toggleRowSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkProbe = async () => {
+    const targets = selectedAssets.filter((a) => a.ip !== 'No IPv4 bound' && a.status !== 'down');
+    if (targets.length === 0) {
+      addToast({ tone: 'warn', title: 'No active IPv4 targets selected to probe' });
+      return;
+    }
+    setBulkProbing(true);
+    let passed = 0;
+    for (const item of targets.slice(0, 10)) {
+      const bare = item.ip.split(':')[0];
+      const res = await executePingDiagnostic(bare, 2, 32, 1500);
+      if (res.data?.status === 'passed') passed += 1;
+    }
+    setBulkProbing(false);
+    await loadData();
+    addToast({
+      tone: passed === Math.min(targets.length, 10) ? 'ok' : 'warn',
+      title: `Bulk probe finished: ${passed}/${Math.min(targets.length, 10)} passed`,
+    });
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    const targets = [...selectedCustomAssets];
+    setBulkDeleteOpen(false);
+    if (targets.length === 0) return;
+    for (const item of targets) {
+      await deleteInventoryNode(item.id);
+    }
+    setSelectedIds((prev) => prev.filter((id) => !targets.some((t) => t.id === id)));
+    await loadData();
+    addToast({
+      tone: 'info',
+      title: `Removed ${targets.length} custom ${targets.length === 1 ? 'node' : 'nodes'}`,
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          for (const item of targets) {
+            await addInventoryNode(item.name, item.ip, item.role, 'custom');
+          }
+          await loadData();
+          addToast({
+            tone: 'ok',
+            title: `Restored ${targets.length} custom ${targets.length === 1 ? 'node' : 'nodes'}`,
+          });
+        },
+      },
     });
   };
 
@@ -422,19 +511,67 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
         }
       />
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-[var(--radius-card)] bg-[var(--accent-soft)] border border-[var(--accent)]/35 text-[13px]">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-[var(--text)]">
+              {selectedIds.length} asset{selectedIds.length === 1 ? '' : 's'} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border)] text-[12px] text-[var(--text-secondary)] hover:text-[var(--text)]"
+            >
+              Clear selection
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBulkProbe}
+              disabled={bulkProbing}
+              className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--accent)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              <Activity className={`w-4 h-4 ${bulkProbing ? 'animate-spin' : ''}`} aria-hidden="true" />
+              <span>{bulkProbing ? 'Probing…' : 'Probe selected'}</span>
+            </button>
+            {selectedCustomAssets.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setBulkDeleteOpen(true)}
+                className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--danger-soft)] border border-[var(--danger)]/35 text-[12px] font-medium text-[var(--danger)] hover:bg-[var(--danger)]/20 inline-flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                <span>Remove custom ({selectedCustomAssets.length})</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Unified Searchable Assets Table */}
       {paginatedAssets.length > 0 ? (
         <div className="overflow-auto max-h-[580px] rounded-[var(--radius-card)] bg-[var(--surface-1)] border border-[var(--border)]">
           <table className="w-full border-collapse text-left text-[13px]">
             <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-[var(--text-secondary)] text-[12px] font-semibold border-b border-[var(--border)]">
               <tr>
-                <th className="py-2.5 px-2.5">Node / Adapter</th>
-                <th className="py-2.5 px-2.5">IP / Binding</th>
-                <th className="py-2.5 px-2.5">Kind</th>
-                <th className="py-2.5 px-2.5">Status</th>
-                <th className="py-2.5 px-2.5">Last seen (UTC)</th>
-                <th className="py-2.5 px-2.5 text-right">Latency</th>
-                <th className="py-2.5 px-2.5 text-right">Actions</th>
+                <th className="py-3 px-2 w-9">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectAllOnPage}
+                    aria-label="Select all assets on current page"
+                    className="w-4 h-4 accent-[var(--accent)] cursor-pointer"
+                  />
+                </th>
+                <th className="py-3 px-2">Node / Adapter</th>
+                <th className="py-3 px-2">IP / Binding</th>
+                <th className="py-3 px-2">Kind</th>
+                <th className="py-3 px-2">Status</th>
+                <th className="py-3 px-2">Last seen (UTC)</th>
+                <th className="py-3 px-2 text-right">Latency</th>
+                <th className="py-3 px-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
@@ -464,7 +601,16 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                       isQuietDown ? 'opacity-55' : ''
                     }`}
                   >
-                    <td className="py-2.5 px-2.5 max-w-[195px]">
+                    <td className="py-2.5 px-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(row.id)}
+                        onChange={() => toggleRowSelect(row.id)}
+                        aria-label={`Select ${maskHost(row.name)}`}
+                        className="w-4 h-4 accent-[var(--accent)] cursor-pointer"
+                      />
+                    </td>
+                    <td className="py-2.5 px-2 max-w-[165px]">
                       <div className="flex items-center gap-2">
                         <div
                           className={`w-8 h-8 rounded-[var(--radius-control)] flex items-center justify-center shrink-0 ${
@@ -488,7 +634,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                       </div>
                     </td>
                     <td
-                      className="py-2.5 px-2.5 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap"
+                      className="py-2.5 px-2 font-mono text-[12px] text-[var(--accent)] whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="inline-flex items-center gap-1">
@@ -498,14 +644,14 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                         )}
                       </div>
                     </td>
-                    <td className="py-2.5 px-2.5 text-[12px] text-[var(--text-secondary)] capitalize whitespace-nowrap">
+                    <td className="py-2.5 px-2 text-[12px] text-[var(--text-secondary)] capitalize whitespace-nowrap">
                       {row.assetKind === 'adapter' ? 'Adapter' : row.role}
                     </td>
-                    <td className="py-2.5 px-2.5 whitespace-nowrap">
+                    <td className="py-2.5 px-2 whitespace-nowrap">
                       <StatusChip size="sm" tone={statusTone} label={statusLabel} />
                     </td>
                     <td
-                      className="py-2.5 px-2.5 font-mono text-[12px] text-[var(--text-secondary)] whitespace-nowrap"
+                      className="py-2.5 px-2 font-mono text-[12px] text-[var(--text-secondary)] whitespace-nowrap"
                       title={row.lastSeen ? formatRelativeTime(row.lastSeen) : undefined}
                     >
                       {row.lastSeen
@@ -514,7 +660,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                         ? 'Link down'
                         : 'No probes yet'}
                     </td>
-                    <td className="py-2.5 px-2.5 text-right font-mono text-[12px] np-mono-val whitespace-nowrap">
+                    <td className="py-2.5 px-2 text-right font-mono text-[12px] np-mono-val whitespace-nowrap">
                       <span
                         className={
                           row.latencyMs !== null
@@ -528,7 +674,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                       </span>
                     </td>
                     <td
-                      className="py-2.5 px-2.5 text-right whitespace-nowrap"
+                      className="py-2.5 px-2 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="inline-flex items-center gap-1.5">
@@ -537,7 +683,7 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                             type="button"
                             onClick={() => handleQuickProbe(row)}
                             disabled={pingingId === row.id}
-                            className="h-9 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] inline-flex items-center gap-1"
+                            className="h-10 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[12px] font-medium text-[var(--text-secondary)] hover:text-[var(--text)] inline-flex items-center gap-1"
                           >
                             <Activity
                               className={`w-3.5 h-3.5 text-[var(--accent)] ${
@@ -551,10 +697,10 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
                           <button
                             type="button"
                             onClick={() => setDeleteTarget(row)}
-                            aria-label={`Remove ${row.name}`}
-                            className="h-9 w-9 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--danger)] inline-flex items-center justify-center"
+                            aria-label={`Remove ${maskHost(row.name)}`}
+                            className="h-10 w-10 rounded-[var(--radius-control)] bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--danger)] inline-flex items-center justify-center"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -810,11 +956,21 @@ export const Inventory: React.FC<InventoryProps> = ({ networkEnv }) => {
       <Dialog
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
-        title={`Remove "${deleteTarget?.name || ''}"?`}
+        title={`Remove "${deleteTarget ? maskHost(deleteTarget.name) : ''}"?`}
         description="This deletes the custom registered endpoint from SQLite. Historical probe records remain preserved."
         confirmLabel="Remove node"
         tone="danger"
         onConfirm={handleConfirmDelete}
+      />
+
+      <Dialog
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        title={`Remove ${selectedCustomAssets.length} custom ${selectedCustomAssets.length === 1 ? 'node' : 'nodes'}?`}
+        description="Selected custom endpoints will be removed from Inventory. You can restore them immediately via the Undo toast."
+        confirmLabel="Remove selected"
+        tone="danger"
+        onConfirm={handleConfirmBulkDelete}
       />
     </div>
   );

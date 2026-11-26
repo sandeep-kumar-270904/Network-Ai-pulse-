@@ -524,7 +524,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                         type="button"
                         onClick={handleTestConnection}
                         disabled={connTestState === 'testing' || Boolean(urlValidation.error)}
-                        className="h-8 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
+                        className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[12px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)] disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
                       >
                         {connTestState === 'testing' ? (
                           <>

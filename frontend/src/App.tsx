@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, RefreshCw, Activity } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Activity, CheckCircle2, ArrowUpRight } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar, TimeRangeOption } from './components/layout/TopBar';
 import { CommandPalette } from './components/ui/CommandPalette';
@@ -391,39 +391,42 @@ const AppLayout: React.FC = () => {
             </div>
           )}
 
-          {backendOnline && globalHealth !== 'healthy' && (
-            <div
-              role="status"
-              className={`mb-6 p-4 rounded-[var(--radius-card)] border flex flex-wrap items-center justify-between gap-3 ${
+          {backendOnline && location.pathname !== '/' && (
+            <button
+              type="button"
+              onClick={() => navigate(globalHealth !== 'healthy' ? '/alerts' : '/analytics')}
+              className={`mb-6 w-full p-3 rounded-[var(--radius-card)] border text-left flex flex-wrap items-center justify-between gap-2 transition-colors ${
                 globalHealth === 'critical'
-                  ? 'bg-[var(--danger-soft)] border-[var(--danger)]/35'
-                  : 'bg-[var(--warn-soft)] border-[var(--warn)]/35'
+                  ? 'bg-[var(--danger-soft)] border-[var(--danger)]/35 hover:border-[var(--danger)]'
+                  : globalHealth === 'degraded'
+                  ? 'bg-[var(--warn-soft)] border-[var(--warn)]/35 hover:border-[var(--warn)]'
+                  : 'bg-[var(--surface-1)] border-[var(--border)] hover:border-[var(--border-strong)]'
               }`}
             >
-              <div className="flex items-start gap-3">
-                <AlertTriangle
-                  className={`w-5 h-5 shrink-0 mt-0.5 ${
-                    globalHealth === 'critical' ? 'text-[var(--danger)]' : 'text-[var(--warn)]'
-                  }`}
-                  aria-hidden="true"
-                />
-                <div>
-                  <p className="text-[14px] font-semibold text-[var(--text)]">
-                    {globalHealth === 'critical' ? 'Critical probe failures detected' : 'Network health degraded'}
-                  </p>
-                  <p className="text-[13px] text-[var(--text-secondary)]">{globalHealthReason}</p>
-                </div>
+              <div className="flex items-center gap-2 min-w-0">
+                {globalHealth === 'healthy' ? (
+                  <CheckCircle2 className="w-4 h-4 text-[var(--ok)] shrink-0" aria-hidden="true" />
+                ) : (
+                  <AlertTriangle
+                    className={`w-4 h-4 shrink-0 ${
+                      globalHealth === 'critical' ? 'text-[var(--danger)]' : 'text-[var(--warn)]'
+                    }`}
+                    aria-hidden="true"
+                  />
+                )}
+                <span className="text-[13px] font-medium text-[var(--text)] truncate">
+                  {globalHealth === 'critical'
+                    ? `Critical: ${globalHealthReason}`
+                    : globalHealth === 'degraded'
+                    ? `Degraded: ${globalHealthReason}`
+                    : `Healthy: ${globalHealthReason}`}
+                </span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => navigate('/alerts')}
-                  className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[13px] font-medium text-[var(--text)] hover:bg-[var(--surface-3)]"
-                >
-                  Inspect alerts
-                </button>
-              </div>
-            </div>
+              <span className="text-[12px] font-medium text-[var(--accent)] inline-flex items-center gap-1 shrink-0">
+                <span>{globalHealth !== 'healthy' ? 'Inspect alerts' : 'View analytics'}</span>
+                <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+              </span>
+            </button>
           )}
 
           {!isSettingsPage && (

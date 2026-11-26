@@ -378,7 +378,7 @@ export const Alerts: React.FC = () => {
               key={tab.value}
               type="button"
               onClick={() => setStateFilter(tab.value)}
-              className={`h-8 px-3 rounded-[var(--radius-control)] text-[12px] font-medium transition-colors ${
+              className={`h-10 px-3 rounded-[var(--radius-control)] text-[12px] font-medium transition-colors ${
                 stateFilter === tab.value
                   ? 'bg-[var(--surface-1)] text-[var(--text)] shadow-[var(--shadow-card)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
@@ -390,32 +390,32 @@ export const Alerts: React.FC = () => {
         </div>
 
         {selectedEventIds.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-[var(--radius-card)] bg-[var(--accent-soft)] border border-[var(--accent)]/35 text-[12px]">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-[var(--radius-card)] bg-[var(--accent-soft)] border border-[var(--accent)]/35 text-[12px]">
             <span className="font-semibold text-[var(--text)]">
               {selectedEventIds.length} selected
             </span>
             <button
               type="button"
               onClick={() => handleStateAction(selectedEventIds, 'acknowledged')}
-              className="h-8 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1"
+              className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2"
             >
-              <Check className="w-3.5 h-3.5 text-[var(--accent)]" />
+              <Check className="w-4 h-4 text-[var(--accent)]" />
               <span>Acknowledge</span>
             </button>
             <button
               type="button"
               onClick={() => handleStateAction(selectedEventIds, 'resolved')}
-              className="h-8 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1"
+              className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2"
             >
-              <CheckCheck className="w-3.5 h-3.5 text-[var(--ok)]" />
+              <CheckCheck className="w-4 h-4 text-[var(--ok)]" />
               <span>Resolve</span>
             </button>
             <button
               type="button"
               onClick={() => handleStateAction(selectedEventIds, 'acknowledged', 60)}
-              className="h-8 px-2.5 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-1"
+              className="h-10 px-3 rounded-[var(--radius-control)] bg-[var(--surface-1)] border border-[var(--border-strong)] text-[var(--text)] hover:bg-[var(--surface-3)] inline-flex items-center gap-2"
             >
-              <Clock className="w-3.5 h-3.5 text-[var(--warn)]" />
+              <Clock className="w-4 h-4 text-[var(--warn)]" />
               <span>Snooze 1h</span>
             </button>
           </div>

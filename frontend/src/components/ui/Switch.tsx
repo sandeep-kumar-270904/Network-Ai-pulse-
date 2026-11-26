@@ -11,6 +11,7 @@ interface SwitchRowProps {
   disabled?: boolean;
   auditNote?: string;
   compact?: boolean;
+  inline?: boolean;
 }
 
 export const Switch: React.FC<SwitchRowProps> = ({
@@ -23,9 +24,52 @@ export const Switch: React.FC<SwitchRowProps> = ({
   disabled = false,
   auditNote,
   compact = false,
+  inline = false,
 }) => {
   const inputId = useId();
   const descId = useId();
+
+  if (inline) {
+    return (
+      <label
+        htmlFor={inputId}
+        className={`inline-flex items-center gap-2 min-h-[40px] px-1 rounded-[var(--radius-control)] select-none ${
+          disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+        }`}
+      >
+        <input
+          id={inputId}
+          type="checkbox"
+          role="switch"
+          aria-checked={checked}
+          aria-label={title}
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden="true"
+          className={`relative w-10 h-5 rounded-full border transition-colors duration-[var(--dur-state)] ease-[var(--ease-out)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-[var(--accent)] peer-focus-visible:outline-offset-2 ${
+            checked
+              ? 'bg-[var(--accent)] border-[var(--accent)]'
+              : 'bg-[var(--surface-2)] border-[var(--border-control)]'
+          }`}
+        >
+          <span
+            className={`absolute top-[2px] left-[2px] w-3.5 h-3.5 rounded-full transition-transform duration-[var(--dur-state)] ease-[var(--ease-out)] ${
+              checked
+                ? 'translate-x-5 bg-[var(--accent-ink)]'
+                : 'translate-x-0 bg-[var(--text-secondary)]'
+            }`}
+          />
+        </span>
+        <span className="text-[12px] font-medium text-[var(--text-secondary)]">
+          {checked ? 'On' : 'Off'}
+        </span>
+      </label>
+    );
+  }
 
   return (
     <label

@@ -260,12 +260,12 @@ export const TestHistory: React.FC = () => {
               Pass / fail timeline strip (latest {timelineSamples.length} matching probes)
             </span>
             <div className="flex items-center gap-3 text-[var(--text-muted)]">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[var(--ok)]" aria-hidden="true" />
+              <span className="inline-flex items-center gap-2">
+                <span className="w-3 h-3 rounded-[var(--radius-control)] bg-[var(--ok)]" aria-hidden="true" />
                 <span>Passed</span>
               </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[var(--danger)]" aria-hidden="true" />
+              <span className="inline-flex items-center gap-2">
+                <span className="w-3 h-3 rounded-[var(--radius-control)] bg-[var(--danger)]" aria-hidden="true" />
                 <span>Failed</span>
               </span>
             </div>
